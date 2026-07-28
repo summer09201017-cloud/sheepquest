@@ -1,0 +1,13 @@
+{
+  "name": "尋羊記",
+  "short_name": "尋羊記",
+  "description": "路加福音 15:走到戶外,把走失的小羊一隻一隻帶回羊圈(99+1)。位置只留在手機,不上傳。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f8f4",
+  "theme_color": "#2e7d4f",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

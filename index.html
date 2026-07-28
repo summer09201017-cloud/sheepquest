@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>尋羊記 — 路加福音 15</title>
+<meta name="theme-color" content="#2e7d4f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{ --green:#2e7d4f; --paper:#f6f8f4; --ink:#243328; --gold:#c9a227; }
+  *{box-sizing:border-box} html,body{margin:0;height:100%;overflow:hidden}
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--paper);color:var(--ink)}
+  #map{position:fixed;inset:0 0 0 0;z-index:0}
+  .top{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;gap:6px;align-items:center;
+    padding:8px 10px;background:linear-gradient(#fffe, #fff0);pointer-events:none}
+  .top>*{pointer-events:auto}
+  .chip{background:#fff;border:2px solid var(--green);border-radius:20px;padding:6px 12px;font-weight:800;font-size:14px;box-shadow:0 2px 6px #0002}
+  .grow{flex:1}
+  .btn{font:inherit;font-weight:800;border:2px solid var(--green);background:#fff;color:var(--green);
+    border-radius:14px;padding:10px 14px;cursor:pointer;box-shadow:0 2px 6px #0002}
+  .btn.primary{background:var(--green);color:#fff}
+  .btn:active{transform:translateY(1px)}
+  .bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:10px;display:flex;gap:8px;justify-content:center;
+    background:linear-gradient(#fff0,#fffd)}
+  #nearBar{position:fixed;left:50%;transform:translateX(-50%);bottom:74px;z-index:21;display:none}
+  /* 全螢幕面板(開場/抓捕/收藏) */
+  .panel{position:fixed;inset:0;z-index:30;background:var(--paper);display:none;overflow:auto;padding:18px 16px 30px}
+  .panel.on{display:block}
+  h1{margin:6px 0;font-size:26px;color:var(--green)}
+  .verse{background:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:10px 12px;line-height:1.9;margin:10px 0;font-size:15px}
+  .hint{font-size:13.5px;color:#5b6b5f;line-height:1.9}
+  .safe{background:#fff4e0;border:2px solid #e0a93f;border-radius:10px;padding:10px 12px;margin:12px 0;line-height:1.9;font-weight:700}
+  /* 抓捕場景 */
+  #catchPanel{background:linear-gradient(#bfe3ff 0 40%, #9fd68f 40% 100%);text-align:center}
+  #sheepBig{font-size:96px;margin-top:8vh;transition:transform .35s;display:inline-block;filter:drop-shadow(0 6px 8px #0003)}
+  #trust{font-size:22px;letter-spacing:4px;min-height:30px}
+  #meterBox{width:min(420px, 86vw);margin:16px auto 8px;background:#fff;border:3px solid var(--green);border-radius:14px;padding:8px}
+  #meter{position:relative;height:34px;background:#eef3ee;border-radius:8px;overflow:hidden}
+  #zone{position:absolute;top:0;bottom:0;background:#9fd68f;border-left:2px solid var(--green);border-right:2px solid var(--green)}
+  #needle{position:absolute;top:-3px;bottom:-3px;width:5px;background:#c0392b;border-radius:2px}
+  #catchMsg{min-height:26px;font-weight:800;font-size:17px}
+  /* 收藏冊 */
+  .flock{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:10px}
+  .slot{aspect-ratio:1;border:2px dashed #b9c8bd;border-radius:12px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;background:#fff;font-size:26px}
+  .slot.got{border-style:solid;border-color:var(--green)}
+  .slot .nm{font-size:10.5px;font-weight:700;color:#456}
+  .slot.gold{border-color:var(--gold);background:#fffbe8}
+  .ribbon{font-size:60px;text-align:center}
+  .sheepMark{font-size:26px;filter:drop-shadow(0 2px 3px #0006)}
+  .youMark{font-size:26px}
+  #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:40;background:#243328;color:#fff;
+    padding:8px 16px;border-radius:20px;font-weight:700;display:none;max-width:86vw;text-align:center}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <span class="chip">🐑 <span id="count">0</span>/100</span>
+  <span class="grow"></span>
+  <button class="btn" id="flockBtn">📖 羊圈</button>
+</div>
+<button class="btn primary" id="nearBar">🪢 帶回這隻羊!</button>
+<div class="bottom">
+  <button class="btn" id="locBtn">📍 重新定位</button>
+  <button class="btn" id="walkBtn" style="display:none">🚶 往最近的羊走一步</button>
+</div>
+<div id="toast"></div>
+
+<!-- 開場 -->
+<section class="panel on" id="introPanel">
+  <h1>🐑 尋羊記</h1>
+  <div class="verse">「一個人若有一百隻羊,一隻走迷了路……他找著了,就歡歡喜喜地扛在肩上,回到家裡。」<br>——路加福音 15:4-6</div>
+  <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(25 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!</p>
+  <div class="safe">🙋 牧人守則(開始前請答應):<br>
+    ① 走路時抬頭看路,過馬路把手機收起來。<br>
+    ② 只在安全的地方找羊(公園、教會園區、家裡附近)。<br>
+    ③ 小小牧人要有大人陪同。</div>
+  <label style="font-weight:800;font-size:16px"><input type="checkbox" id="agree"> 我答應遵守牧人守則</label>
+  <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn primary" id="startBtn" disabled>📍 用 GPS 開始找羊</button>
+    <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
+  </div>
+  <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
+</section>
+
+<!-- 抓捕 -->
+<section class="panel" id="catchPanel">
+  <h1 id="catchTitle" style="margin-top:4vh">🪢 套索小羊</h1>
+  <div id="sheepBig">🐑</div>
+  <div id="trust"></div>
+  <div id="meterBox">
+    <div id="meter"><div id="zone"></div><div id="needle"></div></div>
+  </div>
+  <div id="catchMsg">指針掃到綠區時按下!安撫三次,小羊就跟你走 🥰</div>
+  <button class="btn primary" id="ropeBtn" style="font-size:20px;padding:14px 34px">🪢 丟套索</button>
+  <div style="margin-top:10px"><button class="btn" id="fleeBtn">先讓牠休息(離開)</button></div>
+</section>
+
+<!-- 羊圈(收藏冊) -->
+<section class="panel" id="flockPanel">
+  <h1>📖 我的羊圈</h1>
+  <div class="verse" id="flockVerse">「我告訴你們,一個罪人悔改,在天上也要這樣為他歡喜,較比為九十九個不用悔改的義人歡喜更大。」——路加福音 15:7</div>
+  <div class="hint">已尋回 <b id="count2">0</b>/100 隻。金毛羊 ✨ 是稀有的——遇到要好好珍惜。</div>
+  <div class="flock" id="flockGrid"></div>
+  <div style="margin-top:16px"><button class="btn primary" id="backBtn">← 回地圖繼續找</button></div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ═══ 尋羊記(路加福音 15)═══
+   零個資鐵則:位置只在本機,絕不上傳;收藏存 localStorage。
+   羊=格子種子確定性生成:geohash 格(約100m)+4小時時段 → 同時同地全家同見。 */
+const $ = id => document.getElementById(id);
+const BEACON = 'https://hfpc-play-stats.summer09201017.workers.dev/api/ping?g=sheepquest';
+try { navigator.sendBeacon(BEACON); } catch (e) {}
+/* 真實停留打點(-dwell,艦隊標配):開頁到第一次離開的秒數 */
+let _t0 = Date.now(), _dwSent = false;
+const _bye = () => { if (_dwSent) return; _dwSent = true;
+  try { navigator.sendBeacon(`https://hfpc-play-stats.summer09201017.workers.dev/p?g=sheepquest-dwell&t=` + Math.round((Date.now() - _t0) / 1000)); } catch (e) {} };
+addEventListener('pagehide', _bye);
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _bye(); });
+
+/* ── 存檔 ── */
+let save = {};
+try { save = JSON.parse(localStorage.getItem('sheepquest-v1') || '{}') || {}; } catch (e) { save = {}; }
+save.flock = save.flock || {};   // id → {name, kind, gold, ts}
+const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringify(save)); } catch (e) {} };
+const flockCount = () => Object.keys(save.flock).length;
+
+/* ── 確定性生成 ── */
+const CELL = 0.0011;                                    // ≈ 110m 格
+const EPOCH = () => Math.floor(Date.now() / (4 * 3600e3)); // 4 小時換一批羊
+function seedOf(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const NAMES = ['咩咩','小白','捲捲','蹦蹦','雲朵','棉花','小乖','嘟嘟','球球','安安','樂樂','恩恩','小灰','點點','跳跳','綿綿','呆萌','平安','喜樂','小福'];
+const KINDS = [ { e:'🐑', c:'#fff' }, { e:'🐏', c:'#e8d9c4' } ];
+function sheepInCell(cx, cy) {
+  const id = `${cx}|${cy}|${EPOCH()}`;
+  const r = rng(seedOf(id));
+  if (r() > 0.5) return null;                            // 這格這時段沒有羊
+  const gold = r() < 0.06;                               // ✨ 金毛羊 6%
+  return { id, lat: (cy + 0.15 + r() * 0.7) * CELL, lng: (cx + 0.15 + r() * 0.7) * CELL,
+    name: NAMES[Math.floor(r() * NAMES.length)], kind: KINDS[Math.floor(r() * KINDS.length)], gold };
+}
+function sheepAround(lat, lng) {
+  const cx0 = Math.floor(lng / CELL), cy0 = Math.floor(lat / CELL), out = [];
+  for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) {
+    const s = sheepInCell(cx0 + dx, cy0 + dy);
+    if (s && !save.flock[s.id]) out.push(s);
+  }
+  return out;
+}
+function distM(a, b) {                                   // haversine
+  const R = 6371000, dLa = (b.lat - a.lat) * Math.PI / 180, dLo = (b.lng - a.lng) * Math.PI / 180;
+  const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/* ── 地圖 ── */
+let map = null, youMarker = null, sheepMarkers = [], pos = null, demo = false, watching = null;
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([pos.lat, pos.lng], 17);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  youMarker = L.marker([pos.lat, pos.lng], { icon: L.divIcon({ className: '', html: '<div class="youMark">🧑‍🌾</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
+}
+function refreshSheep() {
+  for (const m of sheepMarkers) m.remove();
+  sheepMarkers = [];
+  const list = sheepAround(pos.lat, pos.lng).map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d).slice(0, 14);
+  for (const s of list) {
+    const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: `<div class="sheepMark">${s.gold ? '✨' : ''}${s.kind.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
+    mk.bindTooltip(`${s.name}・${Math.round(s.d)}m`);
+    sheepMarkers.push(mk);
+  }
+  const near = list[0];
+  window._near = near || null;
+  $('nearBar').style.display = near && near.d <= 25 ? '' : 'none';
+  if (near && near.d <= 25) $('nearBar').textContent = `🪢 帶回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`;
+  $('count').textContent = flockCount();
+}
+function onPos(lat, lng) {
+  pos = { lat, lng };
+  if (!map) initMap();
+  youMarker.setLatLng([lat, lng]);
+  refreshSheep();
+}
+function toast(t, ms) { $('toast').textContent = t; $('toast').style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => $('toast').style.display = 'none', ms || 2600); }
+
+/* ── 開場 ── */
+$('agree').onchange = e => { $('startBtn').disabled = $('demoBtn').disabled = !e.target.checked; };
+$('startBtn').onclick = () => {
+  if (!navigator.geolocation) { toast('這支手機不支援定位,先用測試模式吧'); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    $('introPanel').classList.remove('on');
+    onPos(p.coords.latitude, p.coords.longitude);
+    watching = navigator.geolocation.watchPosition(q => onPos(q.coords.latitude, q.coords.longitude),
+      () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
+    toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
+  }, () => toast('拿不到定位(要允許權限)——或改用 🧪 測試模式'), { enableHighAccuracy: true, timeout: 10000 });
+};
+$('demoBtn').onclick = () => {
+  demo = true;
+  $('introPanel').classList.remove('on');
+  $('walkBtn').style.display = '';
+  onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕虛擬走路
+  toast('🧪 測試模式:按「往最近的羊走一步」模擬走路', 3500);
+};
+$('walkBtn').onclick = () => {
+  const n = window._near; if (!n || !pos) return;
+  const d = distM(pos, n);
+  const step = Math.min(d * 0.45 + 3, 60) / 111000;     // 一步走掉近半距離
+  const ang = Math.atan2(n.lat - pos.lat, n.lng - pos.lng);
+  onPos(pos.lat + Math.sin(ang) * step, pos.lng + Math.cos(ang) * step);
+  map.panTo([pos.lat, pos.lng]);
+};
+$('locBtn').onclick = () => { if (map && pos) map.setView([pos.lat, pos.lng], 17); };
+
+/* ── 抓捕:綠區時機套索(溫柔規則:永不失敗,miss 只是小羊跳開再試) ── */
+let target = null, needleT = 0, needleDir = 1, trust = 0, raf = null;
+$('nearBar').onclick = () => { target = window._near; if (!target) return; startCatch(); };
+function startCatch() {
+  trust = 0; needleT = 0; needleDir = 1;
+  $('catchPanel').classList.add('on');
+  $('catchTitle').textContent = `🪢 套索 ${target.gold ? '✨' : ''}${target.name}`;
+  $('sheepBig').textContent = target.kind.e;
+  $('sheepBig').style.transform = 'none';
+  $('catchMsg').textContent = '指針掃到綠區時按下!安撫三次,小羊就跟你走 🥰';
+  const zw = 26;                                          // 綠區寬 %(幼兒友善)
+  const zx = 18 + Math.random() * (100 - zw - 36);
+  $('zone').style.left = zx + '%'; $('zone').style.width = zw + '%';
+  $('zone').dataset.x = zx; $('zone').dataset.w = zw;
+  drawTrust();
+  cancelAnimationFrame(raf);
+  const tick = () => {
+    needleT += needleDir * 1.35;                          // 掃速
+    if (needleT >= 100) { needleT = 100; needleDir = -1; }
+    if (needleT <= 0) { needleT = 0; needleDir = 1; }
+    $('needle').style.left = `calc(${needleT}% - 2px)`;
+    raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+function drawTrust() { $('trust').textContent = '❤'.repeat(trust) + '🤍'.repeat(3 - trust); }
+$('ropeBtn').onclick = () => {
+  const zx = +$('zone').dataset.x, zw = +$('zone').dataset.w;
+  const inZone = needleT >= zx && needleT <= zx + zw;
+  if (inZone) {
+    trust++;
+    drawTrust();
+    $('sheepBig').style.transform = `scale(${1 + trust * 0.12})`;
+    if (trust >= 3) return caught();
+    $('catchMsg').textContent = ['好溫柔!小羊看著你 👀', '小羊靠過來了!再一次!'][trust - 1] || '';
+  } else {
+    $('sheepBig').style.transform = `translateX(${(Math.random() < 0.5 ? -1 : 1) * 40}px)`;
+    $('catchMsg').textContent = '小羊嚇得跳開了——沒關係,牠不會跑掉,再試一次 💪';
+    setTimeout(() => $('sheepBig').style.transform = `scale(${1 + trust * 0.12})`, 380);
+  }
+};
+function caught() {
+  cancelAnimationFrame(raf);
+  save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now() };
+  persist();
+  try { navigator.sendBeacon(BEACON.replace('sheepquest', 'sheepquest-done')); } catch (e) {}
+  const n = flockCount();
+  $('catchMsg').textContent = `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
+  $('sheepBig').style.transform = 'scale(1.5) translateY(-18px)';
+  setTimeout(() => {
+    $('catchPanel').classList.remove('on');
+    refreshSheep();
+    if (n === 100) { openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!'; }
+    else if (n === 1) toast('第一隻!羊圈(📖)裡看得到牠', 3000);
+    else if (target.gold) toast('✨ 金毛羊入圈!好眼光!', 3000);
+  }, 1400);
+}
+$('fleeBtn').onclick = () => { cancelAnimationFrame(raf); $('catchPanel').classList.remove('on'); };
+
+/* ── 羊圈 ── */
+function openFlock() {
+  $('count2').textContent = flockCount();
+  const got = Object.values(save.flock).sort((a, b) => a.ts - b.ts);
+  let html = '';
+  for (let i = 0; i < 100; i++) {
+    const s = got[i];
+    html += s ? `<div class="slot got ${s.gold ? 'gold' : ''}">${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`
+              : '<div class="slot">·</div>';
+  }
+  $('flockGrid').innerHTML = html;
+  $('flockPanel').classList.add('on');
+}
+$('flockBtn').onclick = openFlock;
+$('backBtn').onclick = () => $('flockPanel').classList.remove('on');
+
+/* PWA */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>
