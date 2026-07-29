@@ -836,17 +836,21 @@ const B3D = (() => {
       const ear = blob(HR * 0.17, skin, 0.55, 1.0, 0.8, 8); ear.position.set(sx * HR * 0.95, -HR * 0.04, 0); head.add(ear);
     }
 
-    /* 牧羊杖:比 A 版短一點,因為 tsum 的手低很多(elJ 在世界 y≈0.69)。
-       算過才不會插進地裡也不會浮空:杖長 1.7、中心掛在 elJ 上方 0.16(elJ 在世界 y≈0.69)
-       → 中心 y≈0.85、下端剛好 0(地面)、上端 1.70(頭頂 1.88 稍下方)⇒ 彎鉤看得見。
-       彎鉤仍在**上端**(0729 截圖驗收抓到的:放下端會在揮杖時被甩到天上)。*/
-    const staff = cyl(0.028, 0.028, 1.7, staffC); staff.position.set(0, 0.16, 0); staff.rotation.x = 0.15;
+    /* 牧羊杖(0730 使用者點名「要長一點」)。算過才不會插進地裡也不會浮空:
+       elJ 在世界 y≈0.69;杖長 2.2、中心掛在 elJ 上方 0.41
+       → 中心 y≈1.10、下端剛好 0(地面)、上端 2.20(**高過頭頂 1.88**)⇒ 又長又看得見。
+       彎鉤仍在**上端**(0729 截圖驗收抓到的:放下端會在揮杖時被甩到天上)。
+       ★ 杖比 A 版長很多,是為了讓「高舉→由上往下砸」那個大弧看得清楚(見 strike() 註解)。*/
+    const staff = cyl(0.028, 0.028, 2.2, staffC); staff.position.set(0, 0.41, 0); staff.rotation.x = 0.15;
     const hook = new T.Mesh(new T.TorusGeometry(0.1, 0.028, 6, 12), new T.MeshLambertMaterial({ color: staffC }));
-    hook.position.set(0, 0.85, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
+    hook.position.set(0, 1.05, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
     arms[1].elJ.add(staff);
 
-    // eyes/blinkT 交出去 → 待機迴圈就會讓他跟動物一樣眨眼+Q 彈呼吸(週期刻意錯開,不同步眨)
-    g.userData = { legs, arms, head, mouth: null, staff, eyes, blinkT: 1.1 };
+    /* eyes/blinkT 交出去 → 待機迴圈就會讓他跟動物一樣眨眼+Q 彈呼吸(週期刻意錯開,不同步眨)。
+       armUp/armUpZ/armDown = 這一版專屬的甩杖角度(高舉 → 由上往下砸);
+       **只有這三個值存在時 strike() 才走「高舉砸下」那條路** → A 版完全不受影響(它 07-29 驗過了)。*/
+    g.userData = { legs, arms, head, mouth: null, staff, eyes, blinkT: 1.1,
+      armUp: -0.75, armUpZ: -0.45, armDown: 2.1, armDownZ: 0.55 };
     return g;
   }
 
@@ -866,12 +870,22 @@ const B3D = (() => {
     const C = BEAST_COLORS[kind] || BEAST_COLORS.lion;
     const g = new T.Group();
     // 圓團身體:半徑大、往前後拉一點、上下壓一點 = 豆子形。熊最胖、狼稍長。
-    const R = kind === 'bear' ? 0.62 : kind === 'wolf' ? 0.54 : 0.58;
+    /* ★ 0730 使用者退件:「TSUM 的狼不像狼」——原本 R=0.54×長 1.34 = 長半徑 0.72,
+       跟熊(0.62×1.18=0.73)**一樣寬**,所以讀起來是一隻灰河馬而不是狼。
+       狼要**精瘦而長**:R 縮到 0.46、但拉長到 1.52 → 長半徑 0.70 不變(身長還在),
+       可是高只有 0.42、寬只有 0.45(熊是 0.58/0.66)⇒ 側面細、正面窄 = 狼的體型。 */
+    const R = kind === 'bear' ? 0.62 : kind === 'wolf' ? 0.46 : 0.58;
     const bodyY = R + 0.16;                                        // 腳只露一小截,身體幾乎坐在地上
-    const body = blob(R, C.body, kind === 'wolf' ? 1.34 : 1.18, 0.94, 1.06);
+    const body = blob(R, C.body, kind === 'wolf' ? 1.52 : 1.18, kind === 'wolf' ? 0.92 : 0.94, kind === 'wolf' ? 0.98 : 1.06);
     body.position.y = bodyY; g.add(body);
     const rump = blob(R * 0.72, C.dark, 1, 0.94, 1);               // 屁股一小團深色,讓側面有層次
     rump.position.set(-R * (kind === 'wolf' ? 0.86 : 0.72), bodyY - R * 0.04, 0); g.add(rump);
+    /* 🐺 狼的肩線(0730 使用者退件第④點):在頸後加一顆**稍高**的球
+       → 側面看有肩胛的起伏,不再是一根圓香腸。狼是瘦的,靠這條線讀出來。*/
+    if (kind === 'wolf') {
+      const shoulder = blob(R * 0.56, C.body, 1.0, 0.94, 0.92);
+      shoulder.position.set(R * 0.34, bodyY + R * 0.34, 0); g.add(shoulder);
+    }
 
     // 四隻短胖腳(只露一點點的小圓球)——仍放進 userData.legs 保持合約
     const legs = [];
@@ -887,16 +901,44 @@ const B3D = (() => {
     headJ.position.set(R * (kind === 'wolf' ? 1.06 : 0.94), bodyY + R * 0.34, 0); g.add(headJ);
     const HR = R * 0.82;
     const skull = blob(HR, C.body, 1, 0.97, 1); headJ.add(skull);
-    // 圓鼻吻(狼稍長一點但仍是圓的)+ 小黑鼻頭
-    const snout = blob(HR * (kind === 'wolf' ? 0.56 : 0.48), C.dark, kind === 'wolf' ? 1.5 : 1.15, 0.82, 1);
-    snout.position.set(HR * 0.72, -HR * 0.24, 0); headJ.add(snout);
-    const nose = blob(HR * 0.17, 0x2b1c14, 1.2, 0.85, 1, 8);
-    nose.position.set(HR * (kind === 'wolf' ? 1.34 : 1.14), -HR * 0.16, 0); headJ.add(nose);
-    // 耳朵:熊=圓耳、獅=小圓耳、狼=圓底尖耳(仍是圓的,不做尖三角)
+    /* 鼻吻。★ 0730 使用者退件「狼不像狼,是嘴不夠長不夠尖嗎?」——**兩個都是,不夠尖是主因**:
+       原本狼的吻是「一顆球拉長」,球拉長前端**還是圓的**,所以再拉長只會變成河馬的吻。
+       狼改用**真的圓錐**(前端收到幾乎一點)+ **淺灰白**的吻部/下巴
+       —— 尖吻和淺色吻是狼的身分證,加了立刻和河馬區隔。
+       ★ 這裡學到的通則(已回報給工具包):tsum 化不是「把方塊換成球」就好,
+         每一隻都要保留一個**一眼認得的輪廓線索**:獅=鬃毛、熊=最圓最胖、羊=毛球凹凸、狼=尖吻+立耳。
+       cyl 沿 local +y 建;rotation.z=-π/2 把 +y 轉成 +x,所以細的那端(rTop)朝前=鼻尖。 */
+    const wolfLt = 0xd8dde2;                                       // 狼的淺灰白吻部
+    if (kind === 'wolf') {
+      const snout = cyl(0.012, HR * 0.42, HR * 0.95, wolfLt, 12);
+      snout.rotation.z = -Math.PI / 2;
+      snout.position.set(HR * 1.00, -HR * 0.20, 0); headJ.add(snout);   // 伸出頭外約 0.47×HR
+      const chin = blob(HR * 0.34, wolfLt, 1.05, 0.55, 0.85, 10);       // 下巴/臉頰的淺色
+      chin.position.set(HR * 0.45, -HR * 0.44, 0); headJ.add(chin);
+      const nose = blob(HR * 0.13, 0x2b2f34, 1.1, 0.9, 1, 8);
+      nose.position.set(HR * 1.46, -HR * 0.20, 0); headJ.add(nose);
+    } else {
+      const snout = blob(HR * 0.48, C.dark, 1.15, 0.82, 1);
+      snout.position.set(HR * 0.72, -HR * 0.24, 0); headJ.add(snout);
+      const nose = blob(HR * 0.17, 0x2b1c14, 1.2, 0.85, 1, 8);
+      nose.position.set(HR * 1.14, -HR * 0.16, 0); headJ.add(nose);
+    }
+    /* 耳朵:熊=圓耳、獅=小圓耳、**狼=大三角立耳**。
+       ★ 0730 使用者退件:狼原本是「頭頂偏後兩個小凸起」,讀起來像犀牛角。
+         改成**朝上的圓錐**(高 0.62×HR)、**往前移**(x 從 -0.1 改 +0.15)、**間距拉開**,
+         並往外微微張開 → 立耳一出現,大腦就不會再讀成河馬/海獅。
+       ⚠ 這是刻意違反本檔原本「耳朵仍是圓的,不做尖三角」那條註解 ——
+         那條讓狼失去身分證,使用者當面退件,所以以「狼專屬例外」處理,熊/獅不變。*/
     for (const sz of [-1, 1]) {
-      const ear = kind === 'wolf'
-        ? blob(HR * 0.3, C.dark, 0.6, 1.45, 0.85, 10)
-        : blob(HR * (kind === 'bear' ? 0.34 : 0.28), C.dark, 1, 1, 0.6, 10);
+      if (kind === 'wolf') {
+        const ear = cyl(0.01, HR * 0.26, HR * 0.62, C.dark, 8);
+        ear.position.set(HR * 0.15, HR * 1.02, sz * HR * 0.60);
+        ear.rotation.x = sz * 0.20; headJ.add(ear);
+        const inner = sph(HR * 0.09, 0xd79a94, 8);                 // 耳內粉色一點,更萌
+        inner.position.set(HR * 0.22, HR * 0.92, sz * HR * 0.56); headJ.add(inner);
+        continue;
+      }
+      const ear = blob(HR * (kind === 'bear' ? 0.34 : 0.28), C.dark, 1, 1, 0.6, 10);
       /* ★ 獅子的耳朵要往外推(0730 幾何驗算抓到的紅燈):鬃毛是繞著頭的一圈,
          耳朵原本在半徑 1.03×HR、剛好落在鬃毛帶裡 → 耳朵被吃掉一半、**耳內粉色整個被埋掉**,
          同時違反臉部鐵則「眼耳嘴眉要齊」。所以獅子的耳朵抬到半徑 1.24×HR
@@ -950,16 +992,23 @@ const B3D = (() => {
        改法:①加粗加長 ②做成**關節 tailJ**、在待機迴圈裡左右擺 —— 會動的東西一定看得見。
        cyl 是沿 local +y 建的,所以 mesh 往 +y 推半個長度,關節轉 z 讓它朝後上方翹。*/
     const tailJ = new T.Group();
-    tailJ.position.set(-R * (kind === 'wolf' ? 1.28 : 1.1), bodyY + R * 0.1, 0); g.add(tailJ);
-    const tLen = kind === 'wolf' ? 0.66 : kind === 'bear' ? 0.24 : 0.56;   // 狼最長蓬鬆、熊只有一小截
+    /* 🐺 狼尾(0730 使用者退件第⑤點):原本是「一串細球往上翹」,那是貓/松鼠的尾巴。
+       狼是**又粗又蓬、往後伸**:球加粗(0.105→0.16)、多一顆、關節往後推出身體外。
+       ⚠ 第一版照「平伸」寫成 rotation.z=1.45(≈83°,幾乎水平)→ 截圖一看**尾巴不見了**:
+         獸朝左前方,尾巴平伸剛好貼在身體側面又朝鏡頭外。改 1.22(≈70°)略抬 → 才露出輪廓。
+         (這就是本系列的鐵則:角度對不對只有截圖看得出來。) */
+    tailJ.position.set(-R * (kind === 'wolf' ? 1.40 : 1.1),
+      bodyY + R * (kind === 'wolf' ? 0.06 : 0.1), 0); g.add(tailJ);
+    const tLen = kind === 'wolf' ? 0.86 : kind === 'bear' ? 0.24 : 0.56;   // 狼最長蓬鬆、熊只有一小截
     // tsum 版尾巴:不用細圓柱,改成一串由小到大的毛球(圓圓的、看得清楚)
-    const balls = kind === 'bear' ? [0.5, 1.0] : kind === 'wolf' ? [0.28, 0.52, 0.76, 1.0] : [0.35, 0.7, 1.0];
+    const balls = kind === 'bear' ? [0.5, 1.0]
+      : kind === 'wolf' ? [0.22, 0.42, 0.62, 0.82, 1.0] : [0.35, 0.7, 1.0];
     balls.forEach((f, i) => {
-      const r = (kind === 'bear' ? 0.13 : 0.105) * (0.8 + 0.28 * f);
+      const r = (kind === 'bear' ? 0.13 : kind === 'wolf' ? 0.16 : 0.105) * (0.8 + 0.28 * f);
       const b = sph(r, i === balls.length - 1 && kind === 'lion' ? C.mane : C.dark, 10);
       b.position.y = tLen * f; tailJ.add(b);
     });
-    tailJ.rotation.z = kind === 'wolf' ? 1.15 : kind === 'bear' ? 0.8 : 0.95;
+    tailJ.rotation.z = kind === 'wolf' ? 1.22 : kind === 'bear' ? 0.8 : 0.95;
     g.userData = { legs, headJ, kind, tailJ, tailZ: tailJ.rotation.z, eyes, blinkT: kind === 'wolf' ? 1.7 : kind === 'bear' ? 3.1 : 0.4 };
     return g;
   }
@@ -1321,15 +1370,44 @@ const B3D = (() => {
     /* 🦯 甩杖擊退:右臂+杖揮下 → 命中白光環 → 獸後仰退開(街霸式擊退) */
     strike(hit) {
       if (!A.on) return;
-      const sh = shep.userData.arms[1].shJ, x0 = beast ? beast.position.x : 0;
-      play(0.42, (p, e) => { sh.rotation.x = -0.25 - Math.sin(p * Math.PI) * 2.0; }, () => { sh.rotation.x = -0.25; });
+      const U = shep.userData, sh = U.arms[1].shJ, x0 = beast ? beast.position.x : 0;
+      const R0 = -0.25, RZ = -0.15;                    // 待機角(和 reset() 同一組數字)
+      /* 🧑‍🌾 B|圓萌牧人的甩杖(使用者 0730:「拿杖的手要高舉,將杖頭由上往下攻擊獸」)──
+         ★ 先講這個骨架的事實,不然以後會有人把角度改回去:杖頭掛在手臂 local **+y**
+           (=肩膀的另一側),手在 -y。所以「手高舉」和「杖頭朝上」在這個 rig 裡**互斥**。
+           達成使用者要的效果的方法是**讓長杖繞著肩膀畫一個大弧**:
+             ① 前 0.14 秒 —— 小幅後拉蓄力(x→-0.75、z→-0.45)。
+                ⚠ 這裡踩過一次:第一版把蓄力寫成 x→-1.15 想「把杖高舉」,
+                  算過才發現**待機時杖本來就幾乎垂直(=已經是最高)**,再轉只會把杖頭往後壓低
+                  (杖頭世界高度從 +1.22 掉到 +0.51)。所以蓄力只能小幅,不能大幅。
+             ② 後 0.30 秒 —— x 掃到 +2.1(用 k² 加速才有重量感)、z 抬到 +0.55
+                → 杖頭走「上 → 前 → 下」砸到獸前面,**手同時往上往外抬高**(蹺蹺板效應)。
+           角度都算過:砸到底時杖頭在世界 y≈0.25(不插地)、杖尾在 y≈1.34、手抬到 y≈1.0 以上。
+         ★ 命中白光/獸被打退要**等杖砸到底才出現**(land=0.52 秒),不然會出現「還沒揮到就見血」。
+         ★ A|寫實版沒有 armUp 這組值 → 走下面 else 的原本動畫,07-29 驗過的手感一點都不動。*/
+      const isB = U.armUp !== undefined, land = isB ? 0.44 : 0;
+      if (isB) {
+        const UP = U.armUp, UZ = U.armUpZ, DN = U.armDown, DZ = U.armDownZ, AD = 0.56;
+        play(AD, (p) => {
+          const t = p * AD;
+          if (t < 0.14) { const k = ease(t / 0.14); sh.rotation.x = R0 + (UP - R0) * k; sh.rotation.z = RZ + (UZ - RZ) * k; }
+          else { const k = Math.min(1, (t - 0.14) / 0.30); sh.rotation.x = UP + (DN - UP) * (k * k); sh.rotation.z = UZ + (DZ - UZ) * k; }
+        }, () => { sh.rotation.set(R0, 0, RZ); });
+      } else {
+        play(0.42, (p, e) => { sh.rotation.x = R0 - Math.sin(p * Math.PI) * 2.0; }, () => { sh.rotation.x = R0; });
+      }
       if (!hit) return;
-      play(0.5, (p, e) => {
-        flash.position.set(x0 - 0.55, 1.0, 0.1); flash.material.opacity = (1 - p) * 0.9;
-        flash.scale.setScalar(0.6 + p * 1.5);
-        if (beast) { beast.position.x = x0 + e * 0.42; beast.rotation.z = Math.sin(p * Math.PI) * 0.18; beast.userData.headJ.rotation.z = Math.sin(p * Math.PI) * 0.4; }
-      }, () => { if (beast) { beast.rotation.z = 0; beast.userData.headJ.rotation.z = 0; } });
-      camShake = 0.05;
+      const FD = land + 0.5;
+      let landed = false;
+      play(FD, (p, e) => {
+        const q = (p * FD - land) / 0.5;             // 杖砸到底之後才跑命中效果
+        if (q < 0) { flash.material.opacity = 0; return; }
+        if (!landed) { landed = true; camShake = 0.05; }
+        const k = Math.min(1, q), ek = ease(k);
+        flash.position.set(x0 - 0.55, 1.0, 0.1); flash.material.opacity = (1 - k) * 0.9;
+        flash.scale.setScalar(0.6 + k * 1.5);
+        if (beast) { beast.position.x = x0 + ek * 0.42; beast.rotation.z = Math.sin(k * Math.PI) * 0.18; beast.userData.headJ.rotation.z = Math.sin(k * Math.PI) * 0.4; }
+      }, () => { if (beast) { beast.rotation.z = 0; beast.userData.headJ.rotation.z = 0; } flash.material.opacity = 0; });
     },
     /* 🛡 閃避:牧人側身翻滾(位移+旋轉+小跳),獸撲空前衝再回位 */
     dodge() {
