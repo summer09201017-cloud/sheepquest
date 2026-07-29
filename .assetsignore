@@ -4,3 +4,7 @@
 .wrangler/**
 讀我.txt
 .assetsignore
+node_modules
+node_modules/**
+scripts
+scripts/**

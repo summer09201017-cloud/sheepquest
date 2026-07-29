@@ -17,8 +17,16 @@
 //                    · hook #25 攔到 #b3dHint 用 style.display='' 還原(劇場模式下會永遠不出現)
 //                    · 開場經文出處錯:「一個人若有一百隻羊,一隻走迷了路」其實是**太 18:12**,
 //                      後半才是路 15:5,卻整句標成路 15:4-6 → 已用 cuv 查驗改成路 15:4-5 逐字原文
-const CACHE = 'sheepquest-v6b';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+// v7(2026-07-30):🔊 朗讀改成**預烤「曉臻」人聲 mp3**,並把**經文出處也唸出來**
+//                 (使用者第二次拍板的鐵律;v6 用 Web Speech 機器聲被退件)。
+//                 Web Speech 整段拔除,沒有機器聲退路——缺 mp3 就不唸。
+//                 已立守門 hook #27 scripture-voice-guard:以後在任何專案寫 speechSynthesis、
+//                 或經文朗讀沒唸出「…章…節」,寫檔當下就會被擋。
+const CACHE = 'sheepquest-v7';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
+  // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
+  './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
+  './voice/1sam17-37.mp3', './voice/voice-on.mp3'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();

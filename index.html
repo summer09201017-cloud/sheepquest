@@ -117,7 +117,7 @@
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
   <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v6(2026-07-30 🔊 朗讀 + ⛶ 放大畫面 + 尾巴)——看不到上面的「🔊 聽經文」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v7(2026-07-30 🔊 曉臻人聲經文+唸出處)——看不到上面的「🔊 聽經文」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -169,57 +169,56 @@ save.flock = save.flock || {};   // id → {name, kind, gold, ts}
 const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringify(save)); } catch (e) {} };
 const flockCount = () => Object.keys(save.flock).length;
 
-/* ── 🔊 中文朗讀(0730 使用者退件:「尋羊記沒有中文朗讀」——這支從頭到尾一句都沒有)──
+/* ── 🔊 經文朗讀:預烤「曉臻」人聲 mp3 ──
    為什麼要:還不識字的孩子玩到過關,經文只是畫面上的字,他讀不到。唸出來他就領受得到。
-   ★ 系列契約(照 skill web-speech-scripture + baked-voice-commentary,呼叫點以後不必改):
-     · **固定句(經文/勝利文案)一律走 speakScripture(text,{ref})**。現在沒有烤好的 mp3 →
-       自動退化成瀏覽器內建中文語音;以後用 /tts-bake 烤好曉臻 mp3 放進 VOICE 表,呼叫點一行都不用動。
-     · speakText() **只准唸動態內容**(羊的名字這種),不可以拿去唸固定句(pre-push 的 tts-gate 會攔)。
-   ★ 三條鐵則:
-     ① 這台機器沒有中文語音 → **靜默放行**,絕不用英文腔去硬唸中文(比不唸還糟)。
-     ② 可以用 🔊 鈕關掉,而且記得住(存在既有的 sheepquest-v1 存檔裡,不新開 localStorage 鍵)。
-     ③ 一次只唸一段,新的打斷舊的——不然過關時三句疊在一起吵。*/
-const VOICE = {};                       // 以後烤好的 mp3:{ '撒上 17:37': './voice/sa17-37.mp3' }
+
+   ★★ 使用者鐵律(2026-07-30 第二次拍板;已立守門 hook #27 scripture-voice-guard 機器化)★★
+     ① **一律預烤神經人聲 mp3**(經文=zh-TW-HsiaoChenNeural 曉臻)。
+        **絕對不可以用瀏覽器內建 Web Speech** —— 那是機器聲,使用者當場退件過。
+        ⚠ 本檔第一版(v6)就是用 Web Speech 被退的;現在整段拔掉,**沒有 Web Speech 退路**。
+     ② **章節出處也要唸出來**,而且接在經文後面烤進**同一支 mp3**,不分兩段播
+        (「…回到家裡。路加福音十五章五節。」)。畫面上有寫不算——孩子要聽得到出自哪一卷書。
+        出處用中文數字寫法,不可寫 15:4-5(會被唸成「十五比四減五」)。
+     烤製腳本:scripts/gen-voice.mjs(node scripts/gen-voice.mjs,需網路;mp3 進 git,之後離線可玩)。
+
+   ★ 另外三條:
+     ① **缺檔=不唸**(不是退化成機器聲);mp3 也已放進 sw.js 的 CORE,離線照樣有聲音。
+     ② 可以用 🔊 鈕關掉,而且記得住(存在既有的 sheepquest-v1 存檔,不新開 localStorage 鍵)。
+     ③ 一次只唸一段,新的打斷舊的——不然過關時幾句疊在一起吵。*/
+const VOICE = {                          // 經文出處 → 預烤人聲檔(內容已含出處唸稿)
+  '路 15:4-5': './voice/luke15-4-5.mp3',
+  '路 15:5':   './voice/luke15-5.mp3',
+  '路 15:6':   './voice/luke15-6.mp3',
+  '撒上 17:37': './voice/1sam17-37.mp3',
+  '_on':       './voice/voice-on.mp3',
+};
 const TTS = {
-  ok: 'speechSynthesis' in window,
-  v: null,
+  _cur: null,                            // 正在播的那支,新的要先把它停掉
   get muted() { return !!save.mute; },
-  init() {
-    if (!this.ok) return;
-    const pick = () => {
-      const vs = speechSynthesis.getVoices().filter(v => /^zh/i.test(v.lang || ''));
-      // 優先台灣→香港→其他中文;都沒有就維持 null=靜默(鐵則①)
-      this.v = vs.find(v => /zh[-_]TW/i.test(v.lang)) || vs.find(v => /zh[-_]HK/i.test(v.lang)) || vs[0] || null;
-    };
-    pick();
-    speechSynthesis.addEventListener?.('voiceschanged', pick);   // 語音表是非同步載入的,晚到要補抓
-    this.paint();
-  },
+  init() { this.paint(); Object.values(VOICE).forEach(u => { try { new Audio(u).preload = 'auto'; } catch (e) {} }); },
   paint() { $('ttsBtn').textContent = this.muted ? '🔇 朗讀' : '🔊 朗讀'; },
   toggle() {
     save.mute = !save.mute; persist(); this.paint();
-    if (save.mute) { try { speechSynthesis.cancel(); } catch (e) {} }
-    else this.speakScripture('好,我會把經文唸出來。');
+    if (save.mute) this._stop(); else this._play(VOICE['_on']);
   },
-  _say(text) {
-    if (!this.ok || this.muted || !this.v || !text) return;      // 沒中文語音就靜默(鐵則①)
+  _stop() { if (this._cur) { try { this._cur.pause(); this._cur.currentTime = 0; } catch (e) {} this._cur = null; } },
+  _play(url) {
+    if (this.muted || !url) return;
+    this._stop();                        // 鐵則③:新的打斷舊的
     try {
-      speechSynthesis.cancel();                                  // 鐵則③:新的打斷舊的
-      const u = new SpeechSynthesisUtterance(String(text));
-      u.voice = this.v; u.lang = this.v.lang || 'zh-TW';
-      u.rate = 0.82; u.pitch = 1.0;                              // 孩子聽:刻意偏慢
-      speechSynthesis.speak(u);
-    } catch (e) { /* 任何語音錯誤都不可以影響玩 */ }
+      const a = new Audio(url);
+      this._cur = a;
+      a.play().catch(() => { this._cur = null; });   // 使用者還沒互動過就被瀏覽器拒播 → 安靜作罷
+    } catch (e) { /* 任何音訊錯誤都不可以影響玩 */ }
   },
-  /* 固定句(經文/勝利文案):有烤好的 mp3 就播 mp3,否則退化成內建語音 */
+  /* 經文/固定句唯一入口。ref 找不到對應 mp3 就**不唸**(不退化成機器聲)。
+     text 只是給人看的備註與字幕用,真正唸出來的是 mp3 裡烤好的內容(含出處)。 */
   speakScripture(text, opt) {
     const ref = opt && opt.ref;
-    const mp3 = ref && VOICE[ref];
-    if (mp3) { try { const a = new Audio(mp3); a.play().catch(() => this._say(text)); return; } catch (e) {} }
-    this._say(text);
+    const url = ref && VOICE[ref];
+    if (!url) return;                    // 缺檔=不唸(鐵則①)——要唸就去 gen-voice.mjs 補烤
+    this._play(url);
   },
-  /* 動態內容(羊的名字…)專用,不可拿來唸固定句 */
-  speakText(text) { this._say(text); },
 };
 
 /* ── 確定性生成 ── */
@@ -499,9 +498,10 @@ function caught() {
     ? `🎉 ${target.name} 從${target.beast.n}口中被救回來了!(第 ${n} 隻)\n「耶和華救我脫離獅子和熊的爪」(撒上 17:37)——不是靠你的力氣,是神與你同在。`
     : `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
   $('catchMsg').style.whiteSpace = 'pre-line';
-  // 🔊 過關就把經文唸出來(系列預設);得勝歸神那句才是重點,不是「你好棒」
-  if (target.beast) TTS.speakScripture('耶和華救我脫離獅子和熊的爪。不是靠你的力氣,是神與你同在。', { ref: '撒上 17:37' });
-  else TTS.speakScripture('找著了,就歡歡喜喜地扛在肩上,回到家裡。', { ref: '路 15:5' });   // 和合本沒有「他」
+  // 🔊 過關就用曉臻人聲唸經文(含出處);得勝歸神那句才是重點,不是「你好棒」
+  // ★ 這裡的文字必須與 voice/*.mp3 烤進去的唸稿**逐字相同**(含中文數字出處),不可漂移
+  if (target.beast) TTS.speakScripture('耶和華救我脫離獅子和熊的爪。撒母耳記上十七章三十七節。不是靠你的力氣,是神與你同在。', { ref: '撒上 17:37' });
+  else TTS.speakScripture('找著了,就歡歡喜喜地扛在肩上,回到家裡。路加福音十五章五節。', { ref: '路 15:5' });   // 和合本沒有「他」
   $('sheepBig').style.transform = 'scale(1.5) translateY(-18px)';
   setTimeout(() => {
     B3D.dispose();                         // 收工:停 RAF + dispose,手機不要一直燒 GPU
@@ -509,7 +509,7 @@ function caught() {
     refreshSheep();
     if (n === 100) {
       openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!';
-      TTS.speakScripture('我失去的羊已經找著了,你們和我一同歡喜吧!一百隻,一隻也不少。', { ref: '路 15:6' });
+      TTS.speakScripture('我失去的羊已經找著了,你們和我一同歡喜吧!路加福音十五章六節。一百隻,一隻也不少。', { ref: '路 15:6' });
     }
     else if (n === 1) toast('第一隻!羊圈(📖)裡看得到牠', 3000);
     else if (target.gold) toast('✨ 金毛羊入圈!好眼光!', 3000);
@@ -531,9 +531,9 @@ function openFlock() {
   $('flockPanel').classList.add('on');
 }
 $('ttsBtn').onclick = () => TTS.toggle();
-// 逐字和合本(0730 用 cuv 查驗過;原稿混了太 18:12 又掛錯出處)
+// 逐字和合本(0730 用 cuv 查驗過;原稿混了太 18:12 又掛錯出處)+ 出處一起唸(鐵律)
 $('introSpeak').onclick = () => TTS.speakScripture(
-  '你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。', { ref: '路 15:4-5' });
+  '你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。路加福音十五章四到五節。', { ref: '路 15:4-5' });
 TTS.init();
 $('flockBtn').onclick = openFlock;
 $('backBtn').onclick = () => $('flockPanel').classList.remove('on');
