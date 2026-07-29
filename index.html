@@ -96,7 +96,7 @@
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
   <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v4(2026-07-30 ⚔️ 3D 戰鬥)——看不到「⚔️ 練習救羊」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v4(2026-07-29 ⚔️ 3D 戰鬥)——看不到「⚔️ 練習救羊」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -214,7 +214,7 @@ function refreshSheep() {
     if (!near || dt.d <= 25 || dt.d < near.d) near = dt;
   }
   window._near = near || null;
-  /* 🔴 0730 修上線至今的真 bug:CSS `#nearBar{display:none}` 是 id 選擇器,
+  /* 🔴 0729 修上線至今的真 bug:CSS `#nearBar{display:none}` 是 id 選擇器,
      用 `style.display=''`(清掉 inline)並不會顯示它——CSS 那條又生效,按鈕永遠不出現=**根本抓不到羊**。
      顯示一律寫**明確的值**,別靠清空 inline 樣式去「還原」被 CSS 藏起來的元素。 */
   $('nearBar').style.display = near && near.d <= 25 ? 'block' : 'none';
@@ -262,7 +262,7 @@ const stepTo = n => {
   map.panTo([pos.lat, pos.lng]);
 };
 $('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
-/* ⚔️ 練習救羊:**一鍵直接站到獸旁邊**(0730 修)——
+/* ⚔️ 練習救羊:**一鍵直接站到獸旁邊**(0729 修)——
    原本是「走一步」(一次只走掉近半距離),第一次按完還有 47m、下方入口不會出現,
    使用者以為壞了(實測重現)。客廳練習模式的目的就是**省掉走路**,所以直接把人放到 4m 處。
    並且把 _near 鎖在這隻身上(見 refreshSheep),否則旁邊有別隻更近的羊時,
@@ -282,7 +282,7 @@ $('walkBeastBtn').onclick = () => {
 $('locBtn').onclick = () => { if (map && pos) map.setView([pos.lat, pos.lng], 17); };
 
 /* ── 抓捕:綠區時機套索(溫柔規則:永不失敗,miss 只是小羊跳開再試) ──
-   ⚔️ 0730 新增第一階段:羊被野獸叼著時要先把獸趕走(撒上 17:34-35)。
+   ⚔️ 0729 新增第一階段:羊被野獸叼著時要先把獸趕走(撒上 17:34-35)。
    同一支綠區指針兩用:phase='fight' 甩杖擊退 / phase='catch' 溫柔套索。
    ★ 幼兒友善的三條溫柔規則,一條都不能破:
      ①羊全程不受傷(獸只會撲牧人)②進度永不倒退(被咬只是指針變快一點=獸更兇)
@@ -445,7 +445,7 @@ $('flockBtn').onclick = openFlock;
 $('backBtn').onclick = () => $('flockPanel').classList.remove('on');
 
 /* ══════════════════════════════════════════════════════════════════════════
-   ⚔️ 3D 戰鬥舞台(0730 使用者點名「像皮克敏/寶可夢GO 的 3D 回合式戰鬥」)
+   ⚔️ 3D 戰鬥舞台(0729 使用者點名「像皮克敏/寶可夢GO 的 3D 回合式戰鬥」)
    ── 設計約束 ──
    ① 這是**單檔 PWA**:three.js 走 CDN 動態 import,**載不到就整塊收起來**,
       下面那條綠區指針照樣能玩(離線、舊瀏覽器、CDN 被擋都不會變成打不開)。
@@ -512,7 +512,7 @@ const B3D = (() => {
     g.add(head);
     // 牧人的杖(握在右手)
     const staff = cyl(0.028, 0.028, 1.25, staffC); staff.position.set(0, -0.55, 0); staff.rotation.x = 0.15;
-    // 牧羊杖的彎鉤在**上端**(0730 截圖驗收抓到:原本放下端,揮杖時鉤子被甩到天上)
+    // 牧羊杖的彎鉤在**上端**(0729 截圖驗收抓到:原本放下端,揮杖時鉤子被甩到天上)
     const hook = new T.Mesh(new T.TorusGeometry(0.1, 0.028, 6, 12), new T.MeshLambertMaterial({ color: staffC }));
     hook.position.set(0, 0.62, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
     arms[1].elJ.add(staff);
@@ -621,7 +621,7 @@ const B3D = (() => {
       /* ★★ 獸朝向鐵則(beast-boss-kit:頭永遠朝螢幕側,任何狀態不可露屁股)——
          模型的頭在 local +x;rotation.y=θ 會把 +x 映到 (cosθ, -sinθ)。
          要頭朝「玩家(左,-x)且偏鏡頭(+z)」→ cosθ≈-0.85、sinθ≈-0.5 → θ≈-π+0.52。
-         0730 截圖驗收就是抓到這條被寫錯(原本 -π/2+0.35+π=屁股對玩家)。*/
+         0729 截圖驗收就是抓到這條被寫錯(原本 -π/2+0.35+π=屁股對玩家)。*/
       beast.rotation.set(0, -Math.PI + 0.52, 0);
       beast.visible = true;
       beast.traverse(o => { if (o.material) { o.material.transparent = false; o.material.opacity = 1; } });
