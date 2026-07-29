@@ -40,6 +40,19 @@
   /* 3D 戰鬥舞台(皮克敏式 3/4 斜視角);離線或載不到 three.js 就整塊收起來,下面的簡易版照樣玩 */
   #b3d{width:min(520px,94vw);height:min(34vh,280px);margin:8px auto 2px;border-radius:14px;overflow:hidden;background:linear-gradient(#bfe6f7,#e8f6e2);display:none}
   #b3d canvas{display:block;width:100%;height:100%}
+  #b3dBar{margin:2px auto 0;display:none}
+  /* ⛶ 戰鬥劇場模式(0730 使用者要求「3D 戰鬥畫面要能全螢幕」)——
+     ★ 不能只把 #b3d 撐滿整個視窗:甩杖/閃避/指針都在 3D 畫面**下面**,蓋掉就變成不能玩。
+     所以做法是:3D 舞台吃掉 68% 螢幕高、隱藏標題/大 emoji/經文/提示,控制列留在下方;
+     同時向瀏覽器要真全螢幕(把網址列也吃掉)。iPhone Safari 不給任意元素全螢幕時,
+     光靠這段 CSS 也已經放大一倍,照樣能玩(降級不失效)。*/
+  #catchPanel.cinema{padding:6px 0 8px}
+  #catchPanel.cinema #b3d{width:100vw;height:68dvh;margin:0 auto 2px;border-radius:0}
+  #catchPanel.cinema #catchTitle,#catchPanel.cinema #sheepBig,
+  #catchPanel.cinema #trust,#catchPanel.cinema #beastVerse,
+  #catchPanel.cinema #b3dHint{display:none!important}
+  #catchPanel.cinema #meterBox{margin-top:6px}
+  #catchPanel.cinema #catchMsg{font-size:16px}
   #meter{position:relative;height:34px;background:#eef3ee;border-radius:8px;overflow:hidden}
   /* ⚔️ 野獸攻擊預告線(紅色 telegraph):判定=畫面,看得到紅才會被咬 */
   #teleLine{display:none;position:absolute;inset:0;background:linear-gradient(90deg,rgba(198,40,40,.18),rgba(198,40,40,.5));border:2px solid #c62828;border-radius:8px}
@@ -70,6 +83,7 @@
 <div class="top">
   <span class="chip">🐑 <span id="count">0</span>/100</span>
   <span class="grow"></span>
+  <button class="btn" id="ttsBtn" title="把經文唸出來(給還不識字的孩子);按一下可以關掉">🔊 朗讀</button>
   <button class="btn" id="flockBtn">📖 羊圈</button>
 </div>
 <button class="btn primary" id="nearBar">🪢 帶回這隻羊!</button>
@@ -83,7 +97,13 @@
 <!-- 開場 -->
 <section class="panel on" id="introPanel">
   <h1>🐑 尋羊記</h1>
-  <div class="verse">「一個人若有一百隻羊,一隻走迷了路……他找著了,就歡歡喜喜地扛在肩上,回到家裡。」<br>——路加福音 15:4-6</div>
+  <!-- ⚠ 0730 cuv 查驗修正(既有錯誤,不是本輪新增):原本寫
+       「一個人若有一百隻羊,一隻走迷了路……他找著了,就歡歡喜喜地扛在肩上,回到家裡。」——路加福音 15:4-6
+       前半其實是**馬太福音 18:12**、後半才是路 15:5,卻整句標成路 15:4-6 = 兩處混成一句又掛錯出處
+       (老師會照著教錯);和合本也沒有「**他**找著了」的「他」。已改成路 15:4-5 逐字原文。-->
+  <div class="verse">「你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。」<br>——路加福音 15:4-5
+    <div style="margin-top:8px"><button class="btn" id="introSpeak">🔊 聽經文</button></div>
+  </div>
   <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(25 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!<br>
     ⚔️ <b>有的羊被野獸叼住了</b>(🦁獅子/🐻熊/🐺狼,✨金毛羊一定有):先看<b>紅線</b>亮起時「閃避」,指針進<b>綠區</b>時「甩杖擊退」,把獸趕走再溫柔地帶牠回家——就像大衛做的(撒上 17:34-35)。小羊全程不會受傷,獸只是被趕走。</p>
   <div class="safe">🙋 牧人守則(開始前請答應):<br>
@@ -96,7 +116,7 @@
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
   <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v5(2026-07-29 ⚔️ 3D 戰鬥)——看不到「⚔️ 練習救羊」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v6(2026-07-30 🔊 朗讀 + ⛶ 放大畫面 + 尾巴)——看不到上面的「🔊 聽經文」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -105,6 +125,7 @@
   <div id="sheepBig">🐑</div>
   <div id="trust"></div>
   <div id="b3d"></div>
+  <div id="b3dBar"><button class="btn" id="fsBtn" title="把 3D 戰鬥畫面放到最大(控制按鈕會留在下面)">⛶ 放大畫面</button></div>
   <div id="b3dHint" class="hint" style="display:none">3D 戰鬥畫面需要連網載入(離線時用下面的簡易版照樣能玩)。</div>
   <div id="meterBox">
     <div id="meter"><div id="zone"></div><div id="needle"></div><div id="teleLine"></div></div>
@@ -146,6 +167,59 @@ try { save = JSON.parse(localStorage.getItem('sheepquest-v1') || '{}') || {}; } 
 save.flock = save.flock || {};   // id → {name, kind, gold, ts}
 const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringify(save)); } catch (e) {} };
 const flockCount = () => Object.keys(save.flock).length;
+
+/* ── 🔊 中文朗讀(0730 使用者退件:「尋羊記沒有中文朗讀」——這支從頭到尾一句都沒有)──
+   為什麼要:還不識字的孩子玩到過關,經文只是畫面上的字,他讀不到。唸出來他就領受得到。
+   ★ 系列契約(照 skill web-speech-scripture + baked-voice-commentary,呼叫點以後不必改):
+     · **固定句(經文/勝利文案)一律走 speakScripture(text,{ref})**。現在沒有烤好的 mp3 →
+       自動退化成瀏覽器內建中文語音;以後用 /tts-bake 烤好曉臻 mp3 放進 VOICE 表,呼叫點一行都不用動。
+     · speakText() **只准唸動態內容**(羊的名字這種),不可以拿去唸固定句(pre-push 的 tts-gate 會攔)。
+   ★ 三條鐵則:
+     ① 這台機器沒有中文語音 → **靜默放行**,絕不用英文腔去硬唸中文(比不唸還糟)。
+     ② 可以用 🔊 鈕關掉,而且記得住(存在既有的 sheepquest-v1 存檔裡,不新開 localStorage 鍵)。
+     ③ 一次只唸一段,新的打斷舊的——不然過關時三句疊在一起吵。*/
+const VOICE = {};                       // 以後烤好的 mp3:{ '撒上 17:37': './voice/sa17-37.mp3' }
+const TTS = {
+  ok: 'speechSynthesis' in window,
+  v: null,
+  get muted() { return !!save.mute; },
+  init() {
+    if (!this.ok) return;
+    const pick = () => {
+      const vs = speechSynthesis.getVoices().filter(v => /^zh/i.test(v.lang || ''));
+      // 優先台灣→香港→其他中文;都沒有就維持 null=靜默(鐵則①)
+      this.v = vs.find(v => /zh[-_]TW/i.test(v.lang)) || vs.find(v => /zh[-_]HK/i.test(v.lang)) || vs[0] || null;
+    };
+    pick();
+    speechSynthesis.addEventListener?.('voiceschanged', pick);   // 語音表是非同步載入的,晚到要補抓
+    this.paint();
+  },
+  paint() { $('ttsBtn').textContent = this.muted ? '🔇 朗讀' : '🔊 朗讀'; },
+  toggle() {
+    save.mute = !save.mute; persist(); this.paint();
+    if (save.mute) { try { speechSynthesis.cancel(); } catch (e) {} }
+    else this.speakScripture('好,我會把經文唸出來。');
+  },
+  _say(text) {
+    if (!this.ok || this.muted || !this.v || !text) return;      // 沒中文語音就靜默(鐵則①)
+    try {
+      speechSynthesis.cancel();                                  // 鐵則③:新的打斷舊的
+      const u = new SpeechSynthesisUtterance(String(text));
+      u.voice = this.v; u.lang = this.v.lang || 'zh-TW';
+      u.rate = 0.82; u.pitch = 1.0;                              // 孩子聽:刻意偏慢
+      speechSynthesis.speak(u);
+    } catch (e) { /* 任何語音錯誤都不可以影響玩 */ }
+  },
+  /* 固定句(經文/勝利文案):有烤好的 mp3 就播 mp3,否則退化成內建語音 */
+  speakScripture(text, opt) {
+    const ref = opt && opt.ref;
+    const mp3 = ref && VOICE[ref];
+    if (mp3) { try { const a = new Audio(mp3); a.play().catch(() => this._say(text)); return; } catch (e) {} }
+    this._say(text);
+  },
+  /* 動態內容(羊的名字…)專用,不可拿來唸固定句 */
+  speakText(text) { this._say(text); },
+};
 
 /* ── 確定性生成 ── */
 const CELL = 0.0011;                                    // ≈ 110m 格
@@ -372,8 +446,14 @@ function beastDown() {
   startLasso();
   $('catchMsg').textContent = `🎉 ${target.beast.n}被趕走了!${target.name} 從牠口中脫身——現在溫柔地把牠帶回來。`;
 }
-function drawTrust() { $('trust').textContent = '❤'.repeat(trust) + '🤍'.repeat(3 - trust); }
+/* ★ 0730 Playwright 全流程實測抓到的真 bug:trust 衝到 4 → '🤍'.repeat(3-4)=repeat(-1)
+   → 當場丟 RangeError「Invalid count value: -1」,而且過關經文被重複唸 4 次。
+   由來:caught() 到面板關閉之間有 1.4 秒空窗,這期間再按一下就會再加一次信任。
+   ⚠ 離線簡易版更容易踩:沒有 3D 動畫在擋輸入(B3D.busy() 永遠 false),孩子連按就中。
+   兩道一起補:①下面 phase==='done' 過關後就不吃輸入 ②這裡把數字夾住,萬一還有別的路徑也不會拋錯。*/
+function drawTrust() { const t = Math.max(0, Math.min(3, trust)); $('trust').textContent = '❤'.repeat(t) + '🤍'.repeat(3 - t); }
 $('ropeBtn').onclick = () => {
+  if (phase === 'done') return;                   // 已經帶回家了,後面的連按一律忽略
   if (B3D.busy()) return;                         // 動畫演出中不吃輸入(回合式)
   if (phase === 'fight') {
     if (tele) { B3D.strike(false); return bite(); }   // 紅線亮還硬打=揮空+被撲(判定=畫面)
@@ -403,6 +483,8 @@ $('ropeBtn').onclick = () => {
   }
 };
 function caught() {
+  if (phase === 'done') return;                   // 防連按重複結算(經文被唸兩次、trust 溢出)
+  phase = 'done';
   cancelAnimationFrame(raf);
   save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
     rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
@@ -416,12 +498,18 @@ function caught() {
     ? `🎉 ${target.name} 從${target.beast.n}口中被救回來了!(第 ${n} 隻)\n「耶和華救我脫離獅子和熊的爪」(撒上 17:37)——不是靠你的力氣,是神與你同在。`
     : `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
   $('catchMsg').style.whiteSpace = 'pre-line';
+  // 🔊 過關就把經文唸出來(系列預設);得勝歸神那句才是重點,不是「你好棒」
+  if (target.beast) TTS.speakScripture('耶和華救我脫離獅子和熊的爪。不是靠你的力氣,是神與你同在。', { ref: '撒上 17:37' });
+  else TTS.speakScripture('找著了,就歡歡喜喜地扛在肩上,回到家裡。', { ref: '路 15:5' });   // 和合本沒有「他」
   $('sheepBig').style.transform = 'scale(1.5) translateY(-18px)';
   setTimeout(() => {
     B3D.dispose();                         // 收工:停 RAF + dispose,手機不要一直燒 GPU
     $('catchPanel').classList.remove('on');
     refreshSheep();
-    if (n === 100) { openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!'; }
+    if (n === 100) {
+      openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!';
+      TTS.speakScripture('我失去的羊已經找著了,你們和我一同歡喜吧!一百隻,一隻也不少。', { ref: '路 15:6' });
+    }
     else if (n === 1) toast('第一隻!羊圈(📖)裡看得到牠', 3000);
     else if (target.gold) toast('✨ 金毛羊入圈!好眼光!', 3000);
   }, 1400);
@@ -441,6 +529,11 @@ function openFlock() {
   $('flockGrid').innerHTML = html;
   $('flockPanel').classList.add('on');
 }
+$('ttsBtn').onclick = () => TTS.toggle();
+// 逐字和合本(0730 用 cuv 查驗過;原稿混了太 18:12 又掛錯出處)
+$('introSpeak').onclick = () => TTS.speakScripture(
+  '你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。', { ref: '路 15:4-5' });
+TTS.init();
 $('flockBtn').onclick = openFlock;
 $('backBtn').onclick = () => $('flockPanel').classList.remove('on');
 
@@ -502,6 +595,13 @@ const B3D = (() => {
     const head = new T.Group(); head.position.y = 2.12;
     const skull = box(0.34, 0.36, 0.32, skin); head.add(skull);
     const hairBack = box(0.36, 0.20, 0.20, hair); hairBack.position.set(0, 0.13, -0.09); head.add(hairBack);
+    /* ★ 頭髮蓋住額頭(0730 使用者退件)——原本只有 hairBack 蓋後腦上緣(z 只到 +0.01),
+       前額整片露膚 = 光頭感。補「頭頂帽片 + 額前瀏海」。
+       ⚠ 兩條鐵則都不能破,所以高度算過:
+         ·「耳前無髮」:瀏海在 y 0.153~0.228,耳朵在 y -0.065~0.045 —— 差得很遠,兩鬢與耳前仍留空。
+         ·「眉毛要看得見」:眉毛頂在 y=0.15,瀏海底緣 0.153 剛好壓在眉上,不會把眉毛埋掉。*/
+    const hairTop = box(0.37, 0.10, 0.35, hair); hairTop.position.set(0, 0.205, -0.01); head.add(hairTop);
+    const fringe = box(0.37, 0.075, 0.10, hair); fringe.position.set(0, 0.19, 0.135); head.add(fringe);
     for (const sx of [-1, 1]) {
       const ear = box(0.05, 0.11, 0.06, skin); ear.position.set(sx * 0.19, -0.01, 0); head.add(ear);
       const eye = box(0.055, 0.055, 0.03, 0x241a10); eye.position.set(sx * 0.08, 0.06, 0.17); head.add(eye);
@@ -548,15 +648,33 @@ const B3D = (() => {
     if (kind === 'lion') {
       const mane = new T.Mesh(new T.TorusGeometry(0.34, 0.13, 8, 16), new T.MeshLambertMaterial({ color: C.mane }));
       mane.rotation.y = Math.PI / 2; mane.position.set(-0.06, 0, 0); headJ.add(mane);
-      const tail = cyl(0.03, 0.03, 0.5, C.body); tail.position.set(-long * 0.55, bodyY + 0.1, 0); tail.rotation.z = 0.9; g.add(tail);
-      const tuft = sph(0.09, C.mane, 8); tuft.position.set(-long * 0.55 - 0.22, bodyY + 0.32, 0); g.add(tuft);
-    } else {
-      const tail = cyl(0.035, 0.05, kind === 'wolf' ? 0.62 : 0.24, C.dark);
-      tail.position.set(-long * 0.55, bodyY + (kind === 'wolf' ? 0.02 : 0.12), 0); tail.rotation.z = kind === 'wolf' ? 1.25 : 0.7; g.add(tail);
     }
-    g.userData = { legs, headJ, kind };
+    /* ★ 尾巴(0730 使用者退件「狼與獅子要加上尾巴」)——三獸本來都有,但問題有兩個:
+       ① 太細(半徑 0.03~0.05,在 1.45 長的身體旁邊等於一根牙籤);
+       ② 獸現在朝左前方(0729 修的朝向鐵則),屁股轉去右後方 → 細尾巴被身體擋掉。
+       改法:①加粗加長 ②做成**關節 tailJ**、在待機迴圈裡左右擺 —— 會動的東西一定看得見。
+       cyl 是沿 local +y 建的,所以 mesh 往 +y 推半個長度,關節轉 z 讓它朝後上方翹。*/
+    const tailJ = new T.Group();
+    tailJ.position.set(-long * 0.5, bodyY + 0.06, 0); g.add(tailJ);
+    const tLen = kind === 'wolf' ? 0.82 : kind === 'bear' ? 0.32 : 0.7;   // 狼最長蓬鬆、熊只有一小截
+    const tRad = kind === 'bear' ? 0.085 : 0.062;
+    const tail = cyl(tRad * 0.85, tRad, tLen, kind === 'lion' ? C.body : C.dark);
+    tail.position.y = tLen / 2; tailJ.add(tail);
+    if (kind === 'lion') { const tuft = sph(0.12, C.mane, 10); tuft.position.y = tLen + 0.02; tailJ.add(tuft); }
+    if (kind === 'wolf') for (const f of [0.42, 0.68, 0.92]) {           // 狼尾蓬鬆:沿著尾巴串幾顆毛球
+      const fur = sph(0.105, C.dark, 8); fur.position.y = tLen * f; tailJ.add(fur);
+    }
+    tailJ.rotation.z = kind === 'wolf' ? 1.15 : kind === 'bear' ? 0.8 : 0.95;
+    g.userData = { legs, headJ, kind, tailJ, tailZ: tailJ.rotation.z };
     return g;
   }
+  /* ★★ 羊朝向鐵則(0730 使用者退件:「羊是屁股對著螢幕」)——和獸同一套算法,別再各處各寫一個數字。
+     makeSheep 的頭在 local +x(h.position.x=+0.28);rotation.y=θ 把 +x 映到 world (cosθ, -sinθ)。
+     鏡頭在 +z(cam 在 z=4.5 看原點)→ 想看到臉,-sinθ 必須是**正的**。
+     舊值 2.6 / 2.4:-sin(2.6)=-0.52、-sin(2.4)=-0.68 → 兩個都把頭轉去 -z=背對鏡頭,所以四處全是屁股對螢幕。
+     新值 -2.2:頭 →(cos-2.2, -sin-2.2)=(-0.59, +0.81)=偏左(牧人那側)但**強烈朝鏡頭** → 臉看得清楚。
+     (獸是 -π+0.52 →(-0.87,+0.50):兩者都朝左前方,獸從後面咬住、羊向前望牧人,不會互看屁股。)*/
+  const SHEEP_FACE = -2.2;
   function makeSheep() {
     const g = new T.Group();
     const wool = 0xfaf7f0;
@@ -566,6 +684,15 @@ const B3D = (() => {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const l = box(0.07, 0.2, 0.07, 0x3f3a34); l.position.set(sx * 0.14, 0.1, sz * 0.1); g.add(l);
     }
+    /* ★ 羊尾巴(0730 使用者退件)——這隻真的完全沒有尾巴,不是看不到而是沒做。
+       羊頭在 +x,所以尾巴接在後端 -x 的上緣;一小截+一顆毛球,朝後上方翹,待機時輕輕搖。*/
+    const tailJ = new T.Group(); tailJ.position.set(-0.21, 0.42, 0); g.add(tailJ);
+    // 尾巴用「略深的米色」不用純白:截圖驗收發現白毛球長在白羊身上,對比太低看不出形狀
+    const tailW = 0xe6dcc8;
+    const stub = cyl(0.05, 0.062, 0.15, tailW); stub.position.y = 0.075; tailJ.add(stub);
+    const puff = sph(0.095, tailW, 10); puff.position.y = 0.17; tailJ.add(puff);
+    tailJ.rotation.z = 1.15;
+    g.userData = { tailJ, tailZ: 1.15 };
     return g;
   }
 
@@ -578,7 +705,11 @@ const B3D = (() => {
     host = $('b3d');
     try {
       if (!T) T = await import(THREE_URL);
-    } catch (e) { failed = true; $('b3dHint').style.display = ''; return false; }
+      // ★ 還原一定要寫**明確值**('block'),不可用 ''(hook #25 當場攔下來的):
+      //   劇場模式的 CSS 有 `#catchPanel.cinema #b3dHint{display:none!important}`,
+      //   清掉 inline 樣式時那條又生效 → 3D 載入失敗的離線提示會永遠不出現、零錯誤訊息。
+      //   這正是尋羊記 v1「帶回這隻羊」鈕上線兩天抓不到羊的同一種病。
+    } catch (e) { failed = true; $('b3dHint').style.display = 'block'; return false; }
     if (!ren) {
       ren = new T.WebGLRenderer({ antialias: true, alpha: true });
       ren.setPixelRatio(Math.min(devicePixelRatio || 1, 2));      // GPU 安全:DPR 夾 2
@@ -608,6 +739,7 @@ const B3D = (() => {
     // 3D 開著就把大 emoji 收起來(手機版面有限;還原要寫**明確值** inline-block,
     // 不能用 '' —— #sheepBig 的 display 是 CSS 給的,清 inline 樣式還原不了。這條剛踩過。)
     $('sheepBig').style.display = 'none';
+    $('b3dBar').style.display = 'block';        // ⛶ 放大鈕:只有 3D 真的活著才給(明確值,同上不可用 '')
     resize(); ready = true;
     if (!raf) loop();
     return true;
@@ -626,17 +758,36 @@ const B3D = (() => {
       beast.visible = true;
       beast.traverse(o => { if (o.material) { o.material.transparent = false; o.material.opacity = 1; } });
       // 羊「被叼住」=擺在獸頭的正前方(獸頭朝左前,所以羊在獸的左前方)
-      sheep.position.set(0.62, 0, 0.28); sheep.rotation.y = 2.6;
+      sheep.position.set(0.62, 0, 0.28); sheep.rotation.y = SHEEP_FACE;
     } else {
-      sheep.position.set(0.5, 0, 0.35); sheep.rotation.y = 2.4;
+      sheep.position.set(0.5, 0, 0.35); sheep.rotation.y = SHEEP_FACE;
     }
     rope.visible = false; flash.material.opacity = 0;
-    cam.position.set(0.15, 2.55, 4.5); cam.lookAt(0, 1.0, 0);
+    placeCam();
+  }
+  /* ── 鏡頭 ──
+     ★ 0730 劇場模式實測抓到的自家 bug:放大成直向(430×585)時**牧人被切在左邊、獅子尾巴切在右邊**。
+     原因:three.js 的 fov 是**垂直**視角;畫面變高變窄 → 水平視角跟著縮 → 主角出框。
+     修法:以「要維持的水平視角 HFOV」回推垂直 fov(夾在 44~76 度之間,免得廣角變形),
+           夾到上限還不夠寬,就把鏡頭往後拉補足。HFOV=68 是刻意選的——在原本橫向的小視窗裡
+           回推正好等於原來的 fov 50,所以小畫面的構圖跟以前一模一樣,不會被這次改動動到。*/
+  const CAM = { x: 0.15, y: 2.55, z: 4.5 };
+  let camD = 1;                                  // 鏡頭距離倍率(直向時 >1 = 往後拉)
+  function placeCam(dx = 0, dy = 0) {
+    if (!cam) return;
+    cam.position.set(CAM.x * camD + dx, CAM.y * camD + dy, CAM.z * camD);
+    cam.lookAt(0, 1.0, 0);
   }
   function resize() {
     if (!ren || !host) return;
     const w = host.clientWidth || 320, h = host.clientHeight || 220;
-    ren.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    ren.setSize(w, h, false); cam.aspect = w / h;
+    const HFOV = 68 * Math.PI / 180;
+    const vf = 2 * Math.atan(Math.tan(HFOV / 2) / cam.aspect) * 180 / Math.PI;
+    cam.fov = Math.max(44, Math.min(76, vf));
+    camD = vf > 76 ? 1 + (vf - 76) / 76 : 1;
+    placeCam();
+    cam.updateProjectionMatrix();
   }
   addEventListener('resize', resize);
   function loop() {
@@ -652,11 +803,22 @@ const B3D = (() => {
     shep.position.y = Math.sin(clock * 2.2) * 0.015;
     if (beast) { beast.position.y = Math.sin(clock * 2.6) * 0.012; sheep.rotation.z = Math.sin(clock * 14) * 0.05; }
     else sheep.rotation.z = Math.sin(clock * 3) * 0.02;
+    /* ★ 尾巴擺動(0730):細尾巴靜止不動=看不出有尾巴,會動就一定看得見。
+       獸有敵意→擺得快而大;羊被叼住時緊張快抖、獲救後悠閒慢搖。*/
+    if (beast && beast.userData.tailJ) {
+      const t = beast.userData.tailJ;
+      t.rotation.y = Math.sin(clock * 3.4) * 0.5;
+      t.rotation.z = beast.userData.tailZ + Math.sin(clock * 2.1) * 0.12;
+    }
+    if (sheep.userData.tailJ) {
+      const t = sheep.userData.tailJ, fast = !!beast;
+      t.rotation.y = Math.sin(clock * (fast ? 9 : 2.6)) * (fast ? 0.42 : 0.3);
+      t.rotation.z = sheep.userData.tailZ + Math.sin(clock * (fast ? 7 : 2)) * 0.1;
+    }
     if (camShake > 0 && !RM) {
       camShake *= 0.86;
-      cam.position.x = 0.15 + Math.sin(clock * 60) * camShake;
-      cam.position.y = 2.55 + Math.cos(clock * 52) * camShake * 0.6;
-      cam.lookAt(0, 1.0, 0);
+      // ★ 一定要走 placeCam:直接寫死 0.15/2.55 會把劇場模式拉遠的鏡頭距離抹掉
+      placeCam(Math.sin(clock * 60) * camShake, Math.cos(clock * 52) * camShake * 0.6);
     }
     ren.render(scene, cam);
   }
@@ -714,7 +876,7 @@ const B3D = (() => {
         beast.traverse(o => { if (o.material) o.material.opacity = 1 - e; });
         sheep.position.y = Math.abs(Math.sin(p * Math.PI * 3)) * 0.22;
       }, () => {
-        scene.remove(beast); beast = null; sheep.position.set(0.5, 0, 0.35); sheep.rotation.y = 2.4;
+        scene.remove(beast); beast = null; sheep.position.set(0.5, 0, 0.35); sheep.rotation.y = SHEEP_FACE;
         after && after();
       });
     },
@@ -741,7 +903,7 @@ const B3D = (() => {
         play(0.55, (q, f) => {                        // 套到:蹦向牧人
           sheep.position.lerpVectors(s0, s0.clone().lerp(tgt, 0.42), f);
           sheep.position.y = Math.abs(Math.sin(q * Math.PI * 2)) * 0.2;
-          sheep.rotation.y = 2.4 - f * 0.5;
+          sheep.rotation.y = SHEEP_FACE - f * 0.35;   // 蹦向牧人時再轉一點朝他(仍看得到臉)
         }, () => { sheep.position.y = 0; });
       });
     },
@@ -772,7 +934,9 @@ const B3D = (() => {
     /* 離開戰鬥:停 RAF + dispose(手機不要一直燒 GPU) */
     dispose() {
       cancelAnimationFrame(raf); raf = null; acts.length = 0; lock = 0;
+      CINEMA.off();                              // 離開戰鬥一定要退出劇場模式,否則下一關版面是壞的
       $('sheepBig').style.display = 'inline-block';
+      $('b3dBar').style.display = 'none';
       if (host) host.style.display = 'none';
       if (!scene) return;
       scene.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); });
@@ -782,6 +946,32 @@ const B3D = (() => {
   };
   return A;
 })();
+
+/* ── ⛶ 戰鬥劇場模式(把 3D 戰鬥畫面放到全螢幕)──
+   ★ 為什麼不是單純把 #b3d 撐滿整個視窗:甩杖/閃避/指針都在 3D 畫面**下面**,蓋掉就變成不能玩。
+   兩段式,第二段失敗也不影響玩:
+     ① CSS class 'cinema' → 舞台吃 68dvh、藏掉標題/大 emoji/經文(任何瀏覽器都有效);
+     ② 再向瀏覽器要真全螢幕,把網址列也吃掉(iPhone Safari 不給任意元素全螢幕 → catch 掉,只留 ①)。
+   ⚠ 換模式後一定要叫 B3D.resize():WebGL canvas 的像素尺寸不會自己跟著 CSS 變,不重量會變形/模糊。*/
+const CINEMA = {
+  on: false,
+  async set(want) {
+    const p = $('catchPanel');
+    this.on = !!want;
+    p.classList.toggle('cinema', this.on);
+    $('fsBtn').textContent = this.on ? '⤡ 縮小畫面' : '⛶ 放大畫面';
+    try {
+      if (this.on) { if (p.requestFullscreen && !document.fullscreenElement) await p.requestFullscreen(); }
+      else if (document.fullscreenElement) await document.exitFullscreen();
+    } catch (e) { /* 不給全螢幕不是錯誤:CSS 放大已經生效 */ }
+    B3D.resize(); requestAnimationFrame(() => B3D.resize());   // 版面變動後再量一次才準
+  },
+  toggle() { return this.set(!this.on); },
+  off() { if (this.on) this.set(false); },
+};
+$('fsBtn').onclick = () => CINEMA.toggle();
+// 按 Esc 或系統自己退出全螢幕時,把 CSS 那段一起收掉(否則舞台卡在放大狀態、版面壞掉)
+addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && CINEMA.on) CINEMA.set(false); });
 
 /* PWA */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
