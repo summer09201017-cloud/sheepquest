@@ -38,6 +38,12 @@
   #trust{font-size:22px;letter-spacing:4px;min-height:30px}
   #meterBox{width:min(420px, 86vw);margin:16px auto 8px;background:#fff;border:3px solid var(--green);border-radius:14px;padding:8px}
   #meter{position:relative;height:34px;background:#eef3ee;border-radius:8px;overflow:hidden}
+  /* ⚔️ 野獸攻擊預告線(紅色 telegraph):判定=畫面,看得到紅才會被咬 */
+  #teleLine{display:none;position:absolute;inset:0;background:linear-gradient(90deg,rgba(198,40,40,.18),rgba(198,40,40,.5));border:2px solid #c62828;border-radius:8px}
+  #meterBox.tele{border-color:#c62828;background:#ffeaea;animation:teleShake .16s infinite}
+  #meterBox.tele #teleLine{display:block}
+  @keyframes teleShake{0%,100%{transform:translateX(0)}50%{transform:translateX(-3px)}}
+  @media (prefers-reduced-motion:reduce){#meterBox.tele{animation:none}}
   #zone{position:absolute;top:0;bottom:0;background:#9fd68f;border-left:2px solid var(--green);border-right:2px solid var(--green)}
   #needle{position:absolute;top:-3px;bottom:-3px;width:5px;background:#c0392b;border-radius:2px}
   #catchMsg{min-height:26px;font-weight:800;font-size:17px}
@@ -67,6 +73,7 @@
 <div class="bottom">
   <button class="btn" id="locBtn">📍 重新定位</button>
   <button class="btn" id="walkBtn" style="display:none">🚶 往最近的羊走一步</button>
+  <button class="btn" id="walkBeastBtn" style="display:none" title="客廳練習用:直接走向被野獸叼住的那隻羊,不用碰運氣">⚔️ 練習救羊(走向有獸的)</button>
 </div>
 <div id="toast"></div>
 
@@ -74,7 +81,8 @@
 <section class="panel on" id="introPanel">
   <h1>🐑 尋羊記</h1>
   <div class="verse">「一個人若有一百隻羊,一隻走迷了路……他找著了,就歡歡喜喜地扛在肩上,回到家裡。」<br>——路加福音 15:4-6</div>
-  <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(25 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!</p>
+  <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(25 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!<br>
+    ⚔️ <b>有的羊被野獸叼住了</b>(🦁獅子/🐻熊/🐺狼,✨金毛羊一定有):先看<b>紅線</b>亮起時「閃避」,指針進<b>綠區</b>時「甩杖擊退」,把獸趕走再溫柔地帶牠回家——就像大衛做的(撒上 17:34-35)。小羊全程不會受傷,獸只是被趕走。</p>
   <div class="safe">🙋 牧人守則(開始前請答應):<br>
     ① 走路時抬頭看路,過馬路把手機收起來。<br>
     ② 只在安全的地方找羊(公園、教會園區、家裡附近)。<br>
@@ -93,10 +101,12 @@
   <div id="sheepBig">🐑</div>
   <div id="trust"></div>
   <div id="meterBox">
-    <div id="meter"><div id="zone"></div><div id="needle"></div></div>
+    <div id="meter"><div id="zone"></div><div id="needle"></div><div id="teleLine"></div></div>
   </div>
   <div id="catchMsg">指針掃到綠區時按下!安撫三次,小羊就跟你走 🥰</div>
   <button class="btn primary" id="ropeBtn" style="font-size:20px;padding:14px 34px">🪢 丟套索</button>
+  <button class="btn" id="dodgeBtn" style="font-size:20px;padding:14px 26px;margin-left:8px;display:none">🛡 閃避</button>
+  <div class="verse" id="beastVerse" style="display:none;margin:12px auto;max-width:min(520px,90vw)">「有時來了獅子,有時來了熊,從群中啣一隻羊羔去。我就追趕他,擊打他,將羊羔從他口中救出來。」——撒母耳記上 17:34-35</div>
   <div style="margin-top:10px"><button class="btn" id="fleeBtn">先讓牠休息(離開)</button></div>
 </section>
 
@@ -138,13 +148,27 @@ function seedOf(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length;
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const NAMES = ['咩咩','小白','捲捲','蹦蹦','雲朵','棉花','小乖','嘟嘟','球球','安安','樂樂','恩恩','小灰','點點','跳跳','綿綿','呆萌','平安','喜樂','小福'];
 const KINDS = [ { e:'🐑', c:'#fff' }, { e:'🐏', c:'#e8d9c4' } ];
+/* ── 野獸(撒上 17:34-35 大衛救羊;約 10:12 狼)──
+   ★ 獸也必須是**種子算出來的**,不可以用 Math.random——否則全家走到同一隻羊面前,
+     一個看到獅子、一個看到狼,「全家同見」就破了(這是本遊戲零後端的根)。
+   hp=要擊退幾次;狼比較弱(牠是「撇下羊逃走」那段的角色,不是大衛打死的獅熊)。*/
+const BEASTS = [
+  { k:'lion', e:'🦁', n:'獅子', hp:3 },
+  { k:'bear', e:'🐻', n:'熊',   hp:3 },
+  { k:'wolf', e:'🐺', n:'狼',   hp:2 },
+];
 function sheepInCell(cx, cy) {
   const id = `${cx}|${cy}|${EPOCH()}`;
   const r = rng(seedOf(id));
   if (r() > 0.5) return null;                            // 這格這時段沒有羊
   const gold = r() < 0.06;                               // ✨ 金毛羊 6%
-  return { id, lat: (cy + 0.15 + r() * 0.7) * CELL, lng: (cx + 0.15 + r() * 0.7) * CELL,
-    name: NAMES[Math.floor(r() * NAMES.length)], kind: KINDS[Math.floor(r() * KINDS.length)], gold };
+  const lat = (cy + 0.15 + r() * 0.7) * CELL, lng = (cx + 0.15 + r() * 0.7) * CELL;
+  const name = NAMES[Math.floor(r() * NAMES.length)], kind = KINDS[Math.floor(r() * KINDS.length)];
+  // ★ 新抽的兩個數字放在**最後面**:舊版本的人看到的羊(位置/名字/金毛)完全不變,
+  //   只是他那份還沒有獸——混版期不會對不上(新增種子欄位一律往後接)。
+  const bRoll = r(), bPick = Math.floor(r() * BEASTS.length);
+  const beast = (gold || bRoll < 0.25) ? BEASTS[bPick] : null;   // 金羊必定有獸;其餘 25%
+  return { id, lat, lng, name, kind, gold, beast };
 }
 function sheepAround(lat, lng) {
   const cx0 = Math.floor(lng / CELL), cy0 = Math.floor(lat / CELL), out = [];
@@ -173,14 +197,19 @@ function refreshSheep() {
   sheepMarkers = [];
   const list = sheepAround(pos.lat, pos.lng).map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d).slice(0, 14);
   for (const s of list) {
-    const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: `<div class="sheepMark">${s.gold ? '✨' : ''}${s.kind.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
-    mk.bindTooltip(`${s.name}・${Math.round(s.d)}m`);
+    const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
+    mk.bindTooltip(`${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`);
     sheepMarkers.push(mk);
   }
   const near = list[0];
   window._near = near || null;
-  $('nearBar').style.display = near && near.d <= 25 ? '' : 'none';
-  if (near && near.d <= 25) $('nearBar').textContent = `🪢 帶回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`;
+  /* 🔴 0730 修上線至今的真 bug:CSS `#nearBar{display:none}` 是 id 選擇器,
+     用 `style.display=''`(清掉 inline)並不會顯示它——CSS 那條又生效,按鈕永遠不出現=**根本抓不到羊**。
+     顯示一律寫**明確的值**,別靠清空 inline 樣式去「還原」被 CSS 藏起來的元素。 */
+  $('nearBar').style.display = near && near.d <= 25 ? 'block' : 'none';
+  if (near && near.d <= 25) $('nearBar').textContent = near.beast
+    ? `⚔️ 從${near.beast.n}口中救回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`
+    : `🪢 帶回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`;
   $('count').textContent = flockCount();
 }
 function onPos(lat, lng) {
@@ -207,49 +236,133 @@ $('demoBtn').onclick = () => {
   demo = true;
   $('introPanel').classList.remove('on');
   $('walkBtn').style.display = '';
+  $('walkBeastBtn').style.display = '';
   onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕虛擬走路
-  toast('🧪 測試模式:按「往最近的羊走一步」模擬走路', 3500);
+  toast('🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 4200);
 };
-$('walkBtn').onclick = () => {
-  const n = window._near; if (!n || !pos) return;
+/* 客廳練習:走向指定的羊(預設最近那隻;按 ⚔️ 就鎖定「有獸的」那隻,不必碰 25% 機率) */
+let demoTarget = null;
+const stepTo = n => {
+  if (!n || !pos) return;
   const d = distM(pos, n);
   const step = Math.min(d * 0.45 + 3, 60) / 111000;     // 一步走掉近半距離
   const ang = Math.atan2(n.lat - pos.lat, n.lng - pos.lng);
   onPos(pos.lat + Math.sin(ang) * step, pos.lng + Math.cos(ang) * step);
   map.panTo([pos.lat, pos.lng]);
 };
+$('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
+$('walkBeastBtn').onclick = () => {
+  if (!pos) return;
+  if (!demoTarget || save.flock[demoTarget.id]) {
+    const withBeast = sheepAround(pos.lat, pos.lng).filter(s => s.beast)
+      .map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d);
+    if (!withBeast.length) return toast('附近這時段剛好沒有被野獸叼住的羊——換個地點或等下一個時段(4 小時換一批)', 4000);
+    demoTarget = withBeast[0];
+    toast(`⚔️ 鎖定 ${demoTarget.beast.n}叼著的 ${demoTarget.name}(${Math.round(demoTarget.d)}m)——繼續按就走過去`, 3500);
+  }
+  stepTo(demoTarget);
+};
 $('locBtn').onclick = () => { if (map && pos) map.setView([pos.lat, pos.lng], 17); };
 
-/* ── 抓捕:綠區時機套索(溫柔規則:永不失敗,miss 只是小羊跳開再試) ── */
+/* ── 抓捕:綠區時機套索(溫柔規則:永不失敗,miss 只是小羊跳開再試) ──
+   ⚔️ 0730 新增第一階段:羊被野獸叼著時要先把獸趕走(撒上 17:34-35)。
+   同一支綠區指針兩用:phase='fight' 甩杖擊退 / phase='catch' 溫柔套索。
+   ★ 幼兒友善的三條溫柔規則,一條都不能破:
+     ①羊全程不受傷(獸只會撲牧人)②進度永不倒退(被咬只是指針變快一點=獸更兇)
+     ③獸是**被趕走**,不是被打死(不流血、不慘叫;beast-boss-kit 鐵則④「敗=制伏不流血」)。
+   ★ 神學鐵則:結算把功勞歸給神(撒上 17:37「耶和華救我脫離獅子和熊的爪」),不是誇孩子的力氣。*/
 let target = null, needleT = 0, needleDir = 1, trust = 0, raf = null;
+let phase = 'catch', bHp = 0, tele = false, teleUntil = 0, nextTele = 0, spd = 1.35;
 $('nearBar').onclick = () => { target = window._near; if (!target) return; startCatch(); };
-function startCatch() {
-  trust = 0; needleT = 0; needleDir = 1;
-  $('catchPanel').classList.add('on');
-  $('catchTitle').textContent = `🪢 套索 ${target.gold ? '✨' : ''}${target.name}`;
-  $('sheepBig').textContent = target.kind.e;
-  $('sheepBig').style.transform = 'none';
-  $('catchMsg').textContent = '指針掃到綠區時按下!安撫三次,小羊就跟你走 🥰';
-  const zw = 26;                                          // 綠區寬 %(幼兒友善)
+function newZone(zw) {
   const zx = 18 + Math.random() * (100 - zw - 36);
   $('zone').style.left = zx + '%'; $('zone').style.width = zw + '%';
   $('zone').dataset.x = zx; $('zone').dataset.w = zw;
-  drawTrust();
+}
+const inZoneNow = () => { const zx = +$('zone').dataset.x, zw = +$('zone').dataset.w; return needleT >= zx && needleT <= zx + zw; };
+function setTele(on) { $('meterBox').classList.toggle('tele', on); }
+function startCatch() {
+  needleT = 0; needleDir = 1; spd = 1.35;
+  $('catchPanel').classList.add('on');
+  $('sheepBig').style.transform = 'none';
+  $('beastVerse').style.display = 'none';
+  if (target.beast) startFight(); else startLasso();
   cancelAnimationFrame(raf);
-  const tick = () => {
-    needleT += needleDir * 1.35;                          // 掃速
+  const tick = ts => {
+    const now = ts || performance.now();
+    needleT += needleDir * spd;
     if (needleT >= 100) { needleT = 100; needleDir = -1; }
     if (needleT <= 0) { needleT = 0; needleDir = 1; }
     $('needle').style.left = `calc(${needleT}% - 2px)`;
+    if (phase === 'fight') {                      // 攻擊預告線:亮 0.9 秒,沒閃到就被撲
+      if (!tele && now >= nextTele) { tele = true; teleUntil = now + 900; setTele(true); $('catchMsg').textContent = `⚠ ${target.beast.n}要撲上來了——快按「🛡 閃避」!`; }
+      else if (tele && now >= teleUntil) { tele = false; setTele(false); bite(); }
+    }
     raf = requestAnimationFrame(tick);
   };
   tick();
 }
+/* ⚔️ 第一階段:趕走野獸 */
+function startFight() {
+  phase = 'fight'; bHp = target.beast.hp; tele = false; setTele(false);
+  nextTele = performance.now() + 2200;
+  $('catchTitle').textContent = `⚔️ ${target.beast.n}叼著 ${target.gold ? '✨' : ''}${target.name}`;
+  $('sheepBig').textContent = target.beast.e + target.kind.e;
+  $('ropeBtn').textContent = '🦯 甩杖擊退';
+  $('dodgeBtn').style.display = '';
+  $('catchMsg').textContent = `指針掃到綠區時按「甩杖擊退」;看到<紅線>亮起就先「閃避」!`;
+  newZone(30);                                    // 戰鬥綠區給寬一點(孩子友善)
+  drawBeastHp();
+}
+const drawBeastHp = () => { $('trust').textContent = `${target.beast.e} ` + '🟥'.repeat(bHp) + '⬜'.repeat(target.beast.hp - bHp); };
+function bite() {
+  spd = Math.min(spd * 1.08, 2.2);                // 獸更兇=指針掃快一點;★進度不倒退
+  nextTele = performance.now() + 1800 + Math.random() * 900;
+  $('sheepBig').style.transform = 'translateX(-16px)';
+  $('catchMsg').textContent = `😣 被${target.beast.n}撲了一下!牧人退一步——小羊沒事,再來!`;
+  setTimeout(() => { $('sheepBig').style.transform = 'none'; }, 320);
+}
+$('dodgeBtn').onclick = () => {
+  if (phase !== 'fight') return;
+  if (tele) {
+    tele = false; setTele(false);
+    nextTele = performance.now() + 1500 + Math.random() * 900;
+    $('catchMsg').textContent = '🛡 好身手,閃過了!趁現在——綠區按甩杖!';
+  } else $('catchMsg').textContent = '(還沒有攻擊,留著力氣等紅線亮起)';
+};
+/* 🪢 第二階段:原本的溫柔套索 */
+function startLasso() {
+  phase = 'catch'; trust = 0; tele = false; setTele(false);
+  $('dodgeBtn').style.display = 'none';
+  $('ropeBtn').textContent = '🪢 丟套索';
+  $('catchTitle').textContent = `🪢 套索 ${target.gold ? '✨' : ''}${target.name}`;
+  $('sheepBig').textContent = target.kind.e;
+  $('catchMsg').textContent = '指針掃到綠區時按下!安撫三次,小羊就跟你走 🥰';
+  newZone(26);
+  drawTrust();
+}
+function beastDown() {
+  tele = false; setTele(false);
+  $('beastVerse').style.display = '';
+  $('sheepBig').style.transform = 'none';
+  startLasso();
+  $('catchMsg').textContent = `🎉 ${target.beast.n}被趕走了!${target.name} 從牠口中脫身——現在溫柔地把牠帶回來。`;
+}
 function drawTrust() { $('trust').textContent = '❤'.repeat(trust) + '🤍'.repeat(3 - trust); }
 $('ropeBtn').onclick = () => {
-  const zx = +$('zone').dataset.x, zw = +$('zone').dataset.w;
-  const inZone = needleT >= zx && needleT <= zx + zw;
-  if (inZone) {
+  if (phase === 'fight') {
+    if (tele) return bite();                      // 紅線亮還硬打=被撲(判定=畫面)
+    if (inZoneNow()) {
+      bHp--; drawBeastHp();
+      $('sheepBig').style.transform = 'translateX(18px)';
+      setTimeout(() => { $('sheepBig').style.transform = 'none'; }, 220);
+      if (bHp <= 0) return beastDown();
+      newZone(30);
+      $('catchMsg').textContent = `打得好!${target.beast.n}退了一步——再來!`;
+    } else $('catchMsg').textContent = `揮空了(${target.beast.n}沒事)——等指針進綠區再打!`;
+    return;
+  }
+  if (inZoneNow()) {
     trust++;
     drawTrust();
     $('sheepBig').style.transform = `scale(${1 + trust * 0.12})`;
@@ -263,11 +376,16 @@ $('ropeBtn').onclick = () => {
 };
 function caught() {
   cancelAnimationFrame(raf);
-  save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now() };
+  save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
+    rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
   persist();
   try { navigator.sendBeacon(BEACON.replace('sheepquest', 'sheepquest-done')); } catch (e) {}
   const n = flockCount();
-  $('catchMsg').textContent = `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
+  // ★ 神學鐵則:得勝歸給神,不誇孩子的力氣(撒上 17:37「耶和華救我脫離獅子和熊的爪」)
+  $('catchMsg').textContent = target.beast
+    ? `🎉 ${target.name} 從${target.beast.n}口中被救回來了!(第 ${n} 隻)\n「耶和華救我脫離獅子和熊的爪」(撒上 17:37)——不是靠你的力氣,是神與你同在。`
+    : `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
+  $('catchMsg').style.whiteSpace = 'pre-line';
   $('sheepBig').style.transform = 'scale(1.5) translateY(-18px)';
   setTimeout(() => {
     $('catchPanel').classList.remove('on');
@@ -277,7 +395,7 @@ function caught() {
     else if (target.gold) toast('✨ 金毛羊入圈!好眼光!', 3000);
   }, 1400);
 }
-$('fleeBtn').onclick = () => { cancelAnimationFrame(raf); $('catchPanel').classList.remove('on'); };
+$('fleeBtn').onclick = () => { cancelAnimationFrame(raf); tele = false; setTele(false); phase = 'catch'; $('catchPanel').classList.remove('on'); };
 
 /* ── 羊圈 ── */
 function openFlock() {
@@ -286,7 +404,7 @@ function openFlock() {
   let html = '';
   for (let i = 0; i < 100; i++) {
     const s = got[i];
-    html += s ? `<div class="slot got ${s.gold ? 'gold' : ''}">${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`
+    html += s ? `<div class="slot got ${s.gold ? 'gold' : ''}" title="${s.rescued ? `從${s.rescued}口中救回來的` : ''}">${s.rescued ? '⚔️' : ''}${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`
               : '<div class="slot">·</div>';
   }
   $('flockGrid').innerHTML = html;
