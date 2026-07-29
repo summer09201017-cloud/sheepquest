@@ -4,7 +4,8 @@
 //                 🔴 修上線至今的真 bug:#nearBar 被 CSS display:none 藏住,style.display='' 顯示不了
 //                 =「帶回這隻羊」按鈕從沒出現過,等於抓不到羊
 // v3(2026-07-30):⚔️ 練習救羊改「一鍵站到獸旁邊」+鎖定 _near(原本按一次還有 47m,入口不出現=以為壞了)+版本標記
-const CACHE = 'sheepquest-v3';
+// v4(2026-07-30):⚔️ 3D 回合式戰鬥舞台(three.js CDN 動態載入,載不到就降級簡易版)——牧人矩形身體+四足獸+甩杖/閃避/套索/獸逃走/帶回家 3D 動畫
+const CACHE = 'sheepquest-v4';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {
