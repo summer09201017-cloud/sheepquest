@@ -3,7 +3,8 @@
 // v2(2026-07-30):⚔️ 從野獸口中搶救(獅/熊/狼節奏戰鬥,種子決定)+客廳「練習救羊」
 //                 🔴 修上線至今的真 bug:#nearBar 被 CSS display:none 藏住,style.display='' 顯示不了
 //                 =「帶回這隻羊」按鈕從沒出現過,等於抓不到羊
-const CACHE = 'sheepquest-v2';
+// v3(2026-07-30):⚔️ 練習救羊改「一鍵站到獸旁邊」+鎖定 _near(原本按一次還有 47m,入口不出現=以為壞了)+版本標記
+const CACHE = 'sheepquest-v3';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {

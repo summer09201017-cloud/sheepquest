@@ -93,6 +93,7 @@
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
   <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v3(2026-07-30 ⚔️ 救羊)——看不到「⚔️ 練習救羊」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -201,7 +202,12 @@ function refreshSheep() {
     mk.bindTooltip(`${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`);
     sheepMarkers.push(mk);
   }
-  const near = list[0];
+  let near = list[0];
+  // 練習模式鎖定:被 ⚔️ 鎖住的那隻優先當「最近的羊」,不然旁邊有普通羊更近時會點成普通套索
+  if (demo && demoTarget && !save.flock[demoTarget.id]) {
+    const dt = { ...demoTarget, d: distM(pos, demoTarget) };
+    if (!near || dt.d <= 25 || dt.d < near.d) near = dt;
+  }
   window._near = near || null;
   /* 🔴 0730 修上線至今的真 bug:CSS `#nearBar{display:none}` 是 id 選擇器,
      用 `style.display=''`(清掉 inline)並不會顯示它——CSS 那條又生效,按鈕永遠不出現=**根本抓不到羊**。
@@ -251,16 +257,22 @@ const stepTo = n => {
   map.panTo([pos.lat, pos.lng]);
 };
 $('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
+/* ⚔️ 練習救羊:**一鍵直接站到獸旁邊**(0730 修)——
+   原本是「走一步」(一次只走掉近半距離),第一次按完還有 47m、下方入口不會出現,
+   使用者以為壞了(實測重現)。客廳練習模式的目的就是**省掉走路**,所以直接把人放到 4m 處。
+   並且把 _near 鎖在這隻身上(見 refreshSheep),否則旁邊有別隻更近的羊時,
+   下方那條會變成「帶回 點點」=點下去是普通套索,永遠練不到戰鬥。 */
 $('walkBeastBtn').onclick = () => {
   if (!pos) return;
-  if (!demoTarget || save.flock[demoTarget.id]) {
-    const withBeast = sheepAround(pos.lat, pos.lng).filter(s => s.beast)
-      .map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d);
-    if (!withBeast.length) return toast('附近這時段剛好沒有被野獸叼住的羊——換個地點或等下一個時段(4 小時換一批)', 4000);
-    demoTarget = withBeast[0];
-    toast(`⚔️ 鎖定 ${demoTarget.beast.n}叼著的 ${demoTarget.name}(${Math.round(demoTarget.d)}m)——繼續按就走過去`, 3500);
-  }
-  stepTo(demoTarget);
+  const withBeast = sheepAround(pos.lat, pos.lng).filter(s => s.beast)
+    .map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d);
+  if (!withBeast.length) return toast('附近這時段剛好沒有被野獸叼住的羊——按「🚶」換個位置,或等下一個時段(4 小時換一批)', 4500);
+  demoTarget = withBeast[0];
+  const ang = Math.atan2(demoTarget.lat - pos.lat, demoTarget.lng - pos.lng);
+  const off = 4 / 111000;                                   // 站到離牠 4 公尺
+  onPos(demoTarget.lat - Math.sin(ang) * off, demoTarget.lng - Math.cos(ang) * off);
+  if (map) map.setView([pos.lat, pos.lng], 18);
+  toast(`⚔️ 已經站到${demoTarget.beast.n}旁邊(${demoTarget.name})——按下面那條「⚔️ 從${demoTarget.beast.n}口中救回…」就開始打!`, 5000);
 };
 $('locBtn').onclick = () => { if (map && pos) map.setView([pos.lat, pos.lng], 17); };
 
@@ -379,6 +391,7 @@ function caught() {
   save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
     rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
   persist();
+  demoTarget = null;                       // 練習鎖定用掉了就放開(下次按 ⚔️ 會找新的)
   try { navigator.sendBeacon(BEACON.replace('sheepquest', 'sheepquest-done')); } catch (e) {}
   const n = flockCount();
   // ★ 神學鐵則:得勝歸給神,不誇孩子的力氣(撒上 17:37「耶和華救我脫離獅子和熊的爪」)
