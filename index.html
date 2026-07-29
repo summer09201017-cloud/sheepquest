@@ -123,7 +123,15 @@
   <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
     🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。不想連外查就把下面的勾勾打開。</p>
   <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v8(2026-07-30 🧸 tsum 圓萌造型 + 🏞 背景跟著地點變)——看不到圓圓的動物就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <!-- 🧑‍🌾 牧人的樣子由玩家自己選(0730 使用者拍板)。動物一律圓萌,只有「人」給選。
+       放在開場面板 = 每次開 App 都看得到、隨時能換(和 🔒 同一區,不新開設定頁)。 -->
+  <label class="hint" style="display:block;margin-top:6px;font-weight:700">🧑‍🌾 牧人的樣子:
+    <select id="shepStyleSel" class="btn" style="font-weight:700;padding:4px 8px">
+      <option value="A">A|寫實牧人(原本的樣子)</option>
+      <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
+    </select>
+  </label>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v8(2026-07-30 🧸 tsum 圓萌動物 + 🏞 背景跟著地點變 + 🧑‍🌾 牧人樣子可選)——看不到圓圓的動物就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -620,6 +628,13 @@ $('noGeoChk').onchange = e => {
   save.noGeo = !!e.target.checked; persist();
   if (save.noGeo) { PLACE.scene = 'grass'; PLACE.label = ''; }
 };
+/* 🧑‍🌾 牧人的樣子(A 寫實 / B 圓萌)——玩家自己選,存進既有存檔,不新開 localStorage 鍵。
+   下一場戰鬥生效(3D 舞台的牧人是只建一次的,mount() 會偵測到選項變了才重建)。 */
+$('shepStyleSel').value = save.shepTsum ? 'B' : 'A';
+$('shepStyleSel').onchange = e => {
+  save.shepTsum = e.target.value === 'B'; persist();
+  toast(save.shepTsum ? '🧑‍🌾 牧人改成「圓萌版」,下一場戰鬥就會換' : '🧑‍🌾 牧人回到「原本的樣子」', 2600);
+};
 /* 🏞 手動選背景(示範用)。填選單 + 選了就不連外查 */
 (() => {
   const sel = $('sceneSel');
@@ -703,8 +718,21 @@ const B3D = (() => {
     return eyes;
   }
 
-  /* ── 牧人(3d-figure-kit 矩形身體 + 長腿 v2 比例)── */
-  function makeShepherd() {
+  /* ══ 牧人的樣子:**玩家自己選**(0730 使用者拍板)══════════════════════════════
+     A|寫實牧人 = makeShepherdBlock():3d-figure-kit 的矩形身體 + 長腿 v2(原本的樣子)。
+     B|圓萌牧人 = makeShepherdTsum():tsum 圓身圓臉大眼笑嘴,**但保留長袍下襬、腰帶、牧羊杖**,
+                 而且**刻意不加腮紅** —— 路加 15 的牧人是主耶穌自己(好牧人尋找失喪的羊),
+                 做成可愛可以,做成「扮家家酒的娃娃」就過頭了。這條界線是使用者(牧者)定的。
+     ★ 兩版都必須交出**完全一樣的 userData 接口**,否則甩杖/閃避/被撲/舉杖帶回家全部會壞:
+         legs:[{hipJ,kneeJ}×2]、arms:[{shJ,elJ,hand}×2](杖掛在 arms[1].elJ)、head、staff。
+       reset() 會去設 arms[0/1].shJ.rotation、strike()/caught() 會轉 arms[1].shJ.rotation.x、
+       probe() 會讀 arms[1].shJ.rotation.x(自動測試靠它斷言「手真的揮了」)。
+     ★ 給人物驗收代理(figure-rules-checker)的話:B 版**故意**違反「矩形身體/長腿 v2」,
+       那是使用者選的畫風,不是退化 —— 判紅燈前先看 save.shepTsum。
+     ════════════════════════════════════════════════════════════════════════════ */
+  function makeShepherd() { return save.shepTsum ? makeShepherdTsum() : makeShepherdBlock(); }
+
+  function makeShepherdBlock() {
     const g = new T.Group();
     const robe = 0xe9e2d0, skin = 0xf0c8a0, hair = 0x3b2a1a, staffC = 0x8b5a2b;
     const chest = box(0.56, 0.76, 0.32, robe); chest.position.y = 1.42; g.add(chest);
@@ -757,6 +785,71 @@ const B3D = (() => {
     return g;
   }
 
+  /* ── B|圓萌牧人(tsum)。接口與 A 版一模一樣,見上面那段鐵則。──
+     ★ 臉的方向:tsumFace 一律做在 local **+x**,但牧人的朝向算式(reset 的 rotation.y=0.95)
+       是照 A 版「臉朝 +z」訂的。所以把臉裝在一個先轉 -90° 的子群組裡:
+       rotation.y=-π/2 會把 local +x 映到 +z ✔ —— 這樣就不用去動任何朝向數字,
+       也不會重演 0730「屁股對著螢幕」那個退件。 */
+  function makeShepherdTsum() {
+    const g = new T.Group();
+    const robe = 0xe9e2d0, skin = 0xf0c8a0, hair = 0x3b2a1a, staffC = 0x8b5a2b, beltC = 0x6b5a3a;
+    const BR = 0.50, HR = 0.46, BY = 0.72, HY = 1.42;   // 身/頭半徑、身/頭中心高
+
+    // 長袍下襬:上窄下寬的一圈 = 一看就是長袍不是連身衣
+    const hem = cyl(BR * 0.80, BR * 1.16, 0.34, robe, 14); hem.position.y = 0.24; g.add(hem);
+    const body = blob(BR, robe, 1.0, 1.08, 0.94); body.position.y = BY; g.add(body);
+    // 腰帶:環腰一圈(躺平的甜甜圈)。tsum 沒有腰,所以帶子就是「認得出是牧人」的關鍵之一
+    const belt = new T.Mesh(new T.TorusGeometry(BR * 0.90, BR * 0.10, 6, 18), new T.MeshLambertMaterial({ color: beltC }));
+    belt.rotation.x = Math.PI / 2; belt.position.y = BY - BR * 0.22; g.add(belt);
+
+    // 腿:tsum 只露一點點的小圓腳,但關節名稱照舊(hipJ / kneeJ)
+    const legs = [];
+    for (const sx of [-1, 1]) {
+      const hipJ = new T.Group(); hipJ.position.set(sx * 0.17, 0.22, 0);
+      const kneeJ = new T.Group(); kneeJ.position.y = -0.09; hipJ.add(kneeJ);
+      const foot = blob(0.15, 0x53412c, 1.05, 0.8, 1.25, 10); foot.position.set(0, -0.05, 0.03); kneeJ.add(foot);
+      g.add(hipJ); legs.push({ hipJ, kneeJ });
+    }
+    /* 手:短胖小圓手(杖掛在 arms[1].elJ,和 A 版同一個位置)。
+       ★ 0730 截圖驗收退件:手臂原本放 x=±BR*0.88(=0.44),但圓身體的半徑就是 BR(=0.50)
+         → 手臂與**整支牧羊杖被埋在身體裡面,畫面上完全看不到杖**。
+         使用者指定 B 版要「保留長袍、腰帶、牧羊杖」,杖不見就是沒做到。
+         所以手臂推到 x=±BR*1.20(=0.60)> 身體半徑 0.50 ⇒ 手和杖都在身體輪廓外面。
+       ⚠ A 版是方塊身(半寬 0.28)所以 0.40 就夠;**圓身體要跟半徑比,不能照抄 A 版的數字**。*/
+    const arms = [];
+    for (const sx of [-1, 1]) {
+      const shJ = new T.Group(); shJ.position.set(sx * BR * 1.20, BY + BR * 0.34, 0);
+      const up = blob(0.145, robe, 1.0, 1.25, 1.0, 10); up.position.y = -0.11; shJ.add(up);
+      const elJ = new T.Group(); elJ.position.y = -0.20; shJ.add(elJ);
+      const hand = blob(0.135, skin, 1.0, 1.0, 1.0, 10); hand.position.y = -0.11; elJ.add(hand);
+      g.add(shJ); arms.push({ shJ, elJ, hand });
+    }
+
+    const head = new T.Group(); head.position.y = HY; g.add(head);
+    head.add(blob(HR, skin, 1.0, 0.98, 1.0));
+    const faceG = new T.Group(); faceG.rotation.y = -Math.PI / 2; head.add(faceG);   // +x → +z(見上面註解)
+    const eyes = tsumFace(faceG, { r: HR, eye: 0.29, eyeGap: 0.36, mouthY: 0.36, eyeColor: 0x241a10 });
+    // 頭髮:頭頂帽片 + 額前瀏海(和 A 版一樣守「耳前無髮」:兩鬢留空)
+    const cap = blob(HR * 0.99, hair, 1.0, 0.56, 1.0, 12); cap.position.set(0, HR * 0.46, -HR * 0.06); head.add(cap);
+    const fringe = blob(HR * 0.60, hair, 1.0, 0.34, 0.46, 10); fringe.position.set(0, HR * 0.50, HR * 0.62); head.add(fringe);
+    for (const sx of [-1, 1]) {
+      const ear = blob(HR * 0.17, skin, 0.55, 1.0, 0.8, 8); ear.position.set(sx * HR * 0.95, -HR * 0.04, 0); head.add(ear);
+    }
+
+    /* 牧羊杖:比 A 版短一點,因為 tsum 的手低很多(elJ 在世界 y≈0.69)。
+       算過才不會插進地裡也不會浮空:杖長 1.7、中心掛在 elJ 上方 0.16(elJ 在世界 y≈0.69)
+       → 中心 y≈0.85、下端剛好 0(地面)、上端 1.70(頭頂 1.88 稍下方)⇒ 彎鉤看得見。
+       彎鉤仍在**上端**(0729 截圖驗收抓到的:放下端會在揮杖時被甩到天上)。*/
+    const staff = cyl(0.028, 0.028, 1.7, staffC); staff.position.set(0, 0.16, 0); staff.rotation.x = 0.15;
+    const hook = new T.Mesh(new T.TorusGeometry(0.1, 0.028, 6, 12), new T.MeshLambertMaterial({ color: staffC }));
+    hook.position.set(0, 0.85, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
+    arms[1].elJ.add(staff);
+
+    // eyes/blinkT 交出去 → 待機迴圈就會讓他跟動物一樣眨眼+Q 彈呼吸(週期刻意錯開,不同步眨)
+    g.userData = { legs, arms, head, mouth: null, staff, eyes, blinkT: 1.1 };
+    return g;
+  }
+
   /* ── 🧸 野獸(tsum 圓萌版;頭在前端 +x)──
      使用者 0730:「羊與熊與獅子與狼,請做成 3D TSUM 的版本,可愛一點 圓圓的」。
      ★ tsum 的造型規則(從方塊野獸改過來的三件事):
@@ -804,16 +897,52 @@ const B3D = (() => {
       const ear = kind === 'wolf'
         ? blob(HR * 0.3, C.dark, 0.6, 1.45, 0.85, 10)
         : blob(HR * (kind === 'bear' ? 0.34 : 0.28), C.dark, 1, 1, 0.6, 10);
-      ear.position.set(-HR * 0.1, HR * (kind === 'wolf' ? 0.92 : 0.82), sz * HR * 0.62);
+      /* ★ 獅子的耳朵要往外推(0730 幾何驗算抓到的紅燈):鬃毛是繞著頭的一圈,
+         耳朵原本在半徑 1.03×HR、剛好落在鬃毛帶裡 → 耳朵被吃掉一半、**耳內粉色整個被埋掉**,
+         同時違反臉部鐵則「眼耳嘴眉要齊」。所以獅子的耳朵抬到半徑 1.24×HR
+         (鬃毛帶外緣只有 1.02×HR)→ 耳根埋在鬃毛裡很自然,耳朵本體與粉色都露在外面。
+         熊/狼沒有鬃毛,維持原位不動。 */
+      const eu = kind === 'lion' ? 1.00 : (kind === 'wolf' ? 0.92 : 0.82);   // 耳朵高度
+      const ez = kind === 'lion' ? 0.74 : 0.62;                              // 耳朵左右
+      ear.position.set(-HR * 0.1, HR * eu, sz * HR * ez);
       headJ.add(ear);
       const inner = sph(HR * 0.13, 0xd79a94, 8);                   // 耳內粉色一點,更萌
-      inner.position.set(-HR * 0.06, HR * (kind === 'wolf' ? 0.98 : 0.84), sz * HR * 0.6);
+      inner.position.set(-HR * 0.06, HR * (kind === 'lion' ? 1.02 : kind === 'wolf' ? 0.98 : 0.84),
+        sz * HR * (kind === 'lion' ? 0.72 : 0.6));
       headJ.add(inner);
     }
     const eyes = tsumFace(headJ, { r: HR, eye: 0.3, eyeGap: 0.36, blush: 0xe08b86, mouthY: 0.34, eyeColor: C.eye });
-    if (kind === 'lion') {                                          // 獅子的招牌:鬃毛環
-      const mane = new T.Mesh(new T.TorusGeometry(HR * 1.12, HR * 0.38, 8, 18), new T.MeshLambertMaterial({ color: C.mane }));
-      mane.rotation.y = Math.PI / 2; mane.position.set(-HR * 0.12, 0, 0); headJ.add(mane);
+    if (kind === 'lion') {
+      /* 獅子的招牌:鬃毛。★ 0730 截圖驗收**退件**的第一版是「一圈粗甜甜圈」
+         (TorusGeometry 外徑 1.5×HR、管子 0.38×HR)—— 那圈比頭還大、顏色又比身體深,
+         從斜上方看變成**一個咖啡色的大喇叭口**、臉縮在洞裡面,整隻讀起來像蝸牛殼不像獅子。
+         改法:換成**繞著臉一圈的小毛球**。★ 這裡有兩個相反的坑,第二版又踩了另一邊:
+           · 太大又是實心一片(舊 torus 外緣 1.50×HR)→ 喇叭口,臉被吃掉;
+           · 太小(第二版壓到外緣 1.02×HR)→ 毛球縮進頭裡面,只剩幾顆沿著背脊冒出來,
+             整隻讀起來像**天竺鼠的一排小凸起**,鬃毛完全不見。
+           · 球太小又太疏(第三版 半徑 1.08、球 0.27)→ 球和球之間有縫、**互不相連**,
+             變成「一串珠子從頭頂繞到背後」;而且環的下半圈整個埋在身體裡(頭心 y≈0.94、
+             環半徑 0.51,下緣掉到 y≈0.42,而身體佔 y 0.19~1.29)→ 只剩上緣那條弧看得見。
+           · 球夠大會重疊了,但**只有一層**(第四版)→ 還是薄薄一條,讀起來像「背上的鬃冠」。
+             而且這裡有個躲不掉的幾何事實:鬃毛環在 x≈0.49、身體 x 佔到 ±0.68,
+             ⇒ **環的下半圈永遠在身體裡面**,不管怎麼調都只露上緣。硬要露下緣就得把頭抬離身體,
+               那就不是 tsum 的「頭黏在身體前面」了。
+         定案(第五版):不靠「環」,靠**厚度**——前後**兩層**毛球錯開半格,連成一圈有體積的毛領。
+           內層 x=-0.18HR/半徑 0.90HR、外層 x=-0.48HR/半徑 1.00HR,球 0.32HR,各 11 顆。
+           相鄰球心距 ≈ 0.51~0.57 < 直徑 0.64 ⇒ 同層一定重疊;兩層再交錯 ⇒ 看起來是一團蓬毛不是珠鍊。
+           最前只到 x=+0.14HR,臉的特徵全在 +0.72~0.86HR ⇒ 絕不蓋臉 ✔
+         ★ 外緣 1.32 是跟耳朵一起算的:耳朵半徑 1.24×HR、耳尖到 1.52(超出鬃毛輪廓),
+           而且耳朵 x=-0.10 比外層鬃毛前面 0.38 ⇒ 畫在鬃毛**前面**,耳朵與耳內粉色都看得見。
+           **改鬃毛尺寸就要重算耳朵**,這兩組數字是綁在一起的。 */
+      for (const [mx, mr, off] of [[-0.18, 0.90, 0], [-0.48, 1.00, 0.5]]) {
+        const N = 11;
+        for (let i = 0; i < N; i++) {
+          const a = (i + off) / N * Math.PI * 2;
+          const fluff = sph(HR * 0.32, C.mane, 8);
+          fluff.position.set(HR * mx, Math.sin(a) * HR * mr, Math.cos(a) * HR * mr);
+          headJ.add(fluff);
+        }
+      }
     }
     /* ★ 尾巴(0730 使用者退件「狼與獅子要加上尾巴」)——三獸本來都有,但問題有兩個:
        ① 太細(半徑 0.03~0.05,在 1.45 長的身體旁邊等於一根牙籤);
@@ -889,6 +1018,15 @@ const B3D = (() => {
           天空色也只微調,不做誇張漸層(投影到教室前面時對比一亂就看不懂該按什麼)。
        ② **手機效能**:每個場景 ≤ 16 個積木、不開陰影;three.js 本身已經 1.2MB,別再加負擔。
        ③ **可整段拿掉**:全部掛在 backdrop 這個 Group 底下,clear 掉就回到原本的草地,不傷玩法。
+     ★★★ 鏡頭天花板(0730 截圖驗收算出來的硬限制,新增場景一定要先算過)★★★
+       鏡頭在 (0.15, 2.55, 4.5) 看 (0,1,0) → 視線俯角 19°;垂直視角被 resize() 夾在 44°
+       (**放大畫面也一樣**,所以劇場模式救不了)→ **畫面上緣只比水平高 3°**。
+       ⇒ 在 z 處看得到的最高點是 y ≈ 2.55 + (4.5 - z) × 0.0524。
+         z=-6.8 → 天花板 y≈3.14;z=-9 → 3.26;z=-16 → 3.62。
+       這就是第一版「淡江大橋」失敗的原因:塔頂做到 y=7.7,是天花板的兩倍半 → 整座塔在畫面外,
+       剩下頂端一條灰橫樑加幾條斜線,看起來像鷹架不像橋。樹冠/車頂棚/校名牌也都在頂邊被削一刀。
+       ⇒ 高的東西有兩條路:(a) 壓到天花板以下;(b) **退到很遠**再整座縮小(橋走這條:
+         退到 z=-16 看整座剪影,塔頂才進得來——「看得到全貌」比「站在橋下」好認得多)。
      招牌地標(手工做細,孩子一看就喊「這是我們那裡」):tamkang 淡江大橋、george 喬治高職。
      其餘走 6 種通用場景,走到沒登記的地方也不會是同一片草地。*/
   let backdrop = null;
@@ -911,44 +1049,72 @@ const B3D = (() => {
         bush.position.set(Math.cos(t) * r, 0.16, Math.sin(t) * r - 1); bush.scale.y = 0.6; b.add(bush);
       }
     },
-    bridge(b) {                                            // 通用大橋:兩座橋塔 + 橋面 + 幾條拉索 + 水面
-      const water = new T.Mesh(new T.PlaneGeometry(26, 12), new T.MeshLambertMaterial({ color: 0x7fb6cf }));
-      water.rotation.x = -Math.PI / 2; water.position.set(0, 0.02, -8.5); b.add(water);
-      const deck = box(24, 0.34, 1.5, 0xc9cdd2); deck.position.set(0, 2.5, -6.4); b.add(deck);
+    /* 🌊 遠景水面:給兩個橋場景用。★ 一定要放在**草地底下**(y=-0.02),不是上面——
+       草地是半徑 9 的圓盤(y=0),水面若放 y>0 會蓋掉近處的草,橫切一條藍帶。
+       放底下就變成「草地小島浮在水上」,草地邊緣外自然接水,沒有接縫也沒有破洞。 */
+    _water(b, col) {
+      const w = new T.Mesh(new T.PlaneGeometry(150, 100), new T.MeshLambertMaterial({ color: col }));
+      w.rotation.x = -Math.PI / 2; w.position.set(0, -0.02, -32); b.add(w);
+    },
+    /* 🌉 斜張拉索:從塔頂拉到橋面某一點。box 是沿 local +y 建的,所以擺中點、轉 z。
+       rotation.z 為正 = 把 +y 往 -x 倒 → 塔頂在左、落點在右(扇形拉向 +x 側)。 */
+    _cable(b, topX, topY, botX, botY, z) {
+      const dx = botX - topX, dy = topY - botY;
+      const c = box(0.055, Math.hypot(dx, dy), 0.055, 0xb9c0c6);
+      c.position.set((topX + botX) / 2, (topY + botY) / 2, z);
+      c.rotation.z = Math.atan2(dx, dy); b.add(c);
+    },
+    bridge(b) {                                            // 通用大橋:雙塔斜張橋(退遠看整座剪影)
+      BACKDROPS._water(b, 0x7fb6cf);
+      const Z = -16, DY = 0.78, DT = DY + 0.14;             // 橋面中心 y / 橋面上緣
+      const deck = box(16, 0.28, 1.2, 0xc9cdd2); deck.position.set(0, DY, Z); b.add(deck);
       for (const sx of [-1, 1]) {
-        const py = box(0.5, 5.6, 0.5, 0xdde1e4); py.position.set(sx * 5.2, 2.9, -6.4); b.add(py);
-        for (const f of [1.6, 3.0, 4.4]) {                 // 斜張拉索(細長方塊,傾斜)
-          const c = box(0.07, 4.6, 0.07, 0xaeb4ba);
-          c.position.set(sx * (5.2 - f * 0.5), 3.6, -6.4); c.rotation.z = sx * 0.42; b.add(c);
-        }
+        const TOP = 2.85;                                   // 塔頂 2.85 < 天花板 3.62 ✔
+        const py = box(0.4, TOP - 0.35, 0.4, 0xdde1e4); py.position.set(sx * 4, (TOP + 0.35) / 2, Z); b.add(py);
+        for (const f of [1.3, 2.6, 3.9]) BACKDROPS._cable(b, sx * 4, TOP - 0.1, sx * (4 - f), DT, Z);
+        const pr = box(0.5, 1.0, 0.5, 0xc3c9ce); pr.position.set(sx * 7, 0.3, Z); b.add(pr);
       }
     },
-    tamkang(b) {                                           // ★ 淡江大橋:單塔不對稱斜張橋(它的招牌就是「只有一座塔」)
-      const water = new T.Mesh(new T.PlaneGeometry(30, 14), new T.MeshLambertMaterial({ color: 0x6fa9c6 }));
-      water.rotation.x = -Math.PI / 2; water.position.set(0, 0.02, -9); b.add(water);
-      const deck = box(26, 0.36, 1.7, 0xd6dade); deck.position.set(0, 2.7, -6.8); b.add(deck);
-      const tower = box(0.62, 7.4, 0.62, 0xeef1f3); tower.position.set(-3.4, 4.0, -6.8);
-      tower.rotation.z = 0.09; b.add(tower);               // 微微傾斜=淡江大橋那根單塔的姿態
-      for (const f of [1.2, 2.4, 3.6, 4.8, 6.0]) {         // 扇形拉索全部拉向同一側
-        const c = box(0.07, 6.4, 0.07, 0xb9c0c6);
-        c.position.set(-3.4 + f * 0.72, 4.0, -6.8); c.rotation.z = -0.52 - f * 0.035; b.add(c);
-      }
-      for (const sx of [-1, 1]) { const pr = box(0.7, 2.8, 0.7, 0xc3c9ce); pr.position.set(sx * 8.5, 1.4, -6.8); b.add(pr); }
+    tamkang(b) {
+      /* ★ 淡江大橋:**單塔不對稱斜張橋**(它的招牌就是「只有一座塔、拉索全往同一側」)。
+         0730 截圖驗收退件的第一版是「站在橋下往上看」:塔頂做到 y=7.7,而這個鏡頭在
+         z=-6.8 的天花板只有 y≈3.14 → 整座塔在畫面外,剩一條灰橫樑+幾條斜線=像鷹架。
+         改法:退到 z=-16(天花板 3.62)整座縮小,**看得到全貌**——塔頂、扇形拉索、橋面
+         一次入鏡,孩子才認得出「這是我們那座橋」。 */
+      BACKDROPS._water(b, 0x6fa9c6);
+      const Z = -16, DY = 0.78, DT = DY + 0.14, TX = -3.2, TOP = 3.35;   // 塔頂 3.35 < 天花板 3.62 ✔
+      const deck = box(17, 0.28, 1.2, 0xd6dade); deck.position.set(0, DY, Z); b.add(deck);
+      const tower = box(0.42, TOP - 0.3, 0.42, 0xeef1f3);
+      tower.position.set(TX, (TOP + 0.3) / 2, Z); tower.rotation.z = 0.07; b.add(tower);  // 微傾=那根單塔的姿態
+      for (const f of [1.5, 2.9, 4.3, 5.7, 7.1]) BACKDROPS._cable(b, TX, TOP - 0.12, TX + f, DT, Z);
+      for (const sx of [-1, 1]) { const pr = box(0.5, 1.0, 0.5, 0xc3c9ce); pr.position.set(sx * 6.4, 0.3, Z); b.add(pr); }
     },
     school(b) {                                            // 通用校園:校門 + 圍牆 + 紅色跑道 + 旗竿
-      const track = new T.Mesh(new T.RingGeometry(3.9, 5.3, 24), new T.MeshLambertMaterial({ color: 0xc4674f }));
-      track.rotation.x = -Math.PI / 2; track.position.set(0, 0.03, -3.4); b.add(track);
+      /* ★ 跑道(0730 截圖驗收退件):第一版是一圈 RingGeometry(3.9~5.3) 擺在 z=-3.4 ——
+         算過才發現牧人到圈心的距離是 4.14,**正好落在圈上**,獸則在圈內 →
+         一大片飽和紅鋪在戰鬥區腳下,違反本檔第①條「景物一律站到外圈」,
+         而且投影到教室前面時會跟「紅色攻擊預告線」搶注意力(孩子分不清哪個紅要反應)。
+         改法:改成**外圈的直線跑道**(z=-5.6,整條都在 z<-2.4 的外圈),彩度也壓低
+         (0xc4674f → 0xb8806e)。跑道感靠「紅土 + 兩條白線」就夠了。 */
+      const lane = (w, d, col, z) => {
+        const m = new T.Mesh(new T.PlaneGeometry(w, d), new T.MeshLambertMaterial({ color: col }));
+        m.rotation.x = -Math.PI / 2; m.position.set(0, 0.03, z); b.add(m);
+      };
+      lane(22, 2.0, 0xb8806e, -5.6);                       // 紅土跑道
+      lane(22, 0.07, 0xeae4da, -5.02); lane(22, 0.07, 0xeae4da, -6.18);   // 兩條白色跑道線
       const wall = box(16, 1.1, 0.3, 0xe3ded2); wall.position.set(0, 0.55, -7.6); b.add(wall);
       for (const sx of [-1, 1]) { const p = box(0.5, 2.2, 0.5, 0xd9cfbd); p.position.set(sx * 1.5, 1.1, -7.6); b.add(p); }
       const lintel = box(3.6, 0.4, 0.5, 0xb9855a); lintel.position.set(0, 2.3, -7.6); b.add(lintel);
-      const pole = box(0.12, 4.2, 0.12, 0xe8e8e8); pole.position.set(-6, 2.1, -7.2); b.add(pole);
-      const flag = box(1.1, 0.7, 0.06, 0xd05a4e); flag.position.set(-5.4, 3.7, -7.2); b.add(flag);
+      // 旗竿/旗子:壓到天花板以下(z=-7.2 的天花板是 y≈3.16;舊值竿頂 4.2、旗頂 4.05 都被切掉)
+      const pole = box(0.12, 3.0, 0.12, 0xe8e8e8); pole.position.set(-6, 1.5, -7.2); b.add(pole);
+      const flag = box(1.1, 0.7, 0.06, 0xd05a4e); flag.position.set(-5.4, 2.6, -7.2); b.add(flag);
     },
     george(b) {                                            // ★ 喬治高職:校門 + 校名牌 + 教學樓 + 跑道
       BACKDROPS.school(b);
-      const sign = box(3.0, 0.8, 0.14, 0x2f5d9e); sign.position.set(0, 3.0, -7.5); b.add(sign);
-      for (const i of [0, 1, 2]) {                         // 校名牌上四個窗格代表字(不寫字,3D 字要載字型)
-        const ch = box(0.42, 0.42, 0.06, 0xf2f4f7); ch.position.set(-0.95 + i * 0.95, 3.0, -7.4); b.add(ch);
+      // 校名牌:壓到天花板以下(z=-7.5 的天花板是 y≈3.18;舊值 y=3.0 → 牌頂 3.4 被切掉一半)
+      const sign = box(3.0, 0.8, 0.14, 0x2f5d9e); sign.position.set(0, 2.55, -7.5); b.add(sign);
+      for (const i of [0, 1, 2]) {                         // 校名牌上三個窗格代表字(不寫字,3D 字要載字型)
+        const ch = box(0.42, 0.42, 0.06, 0xf2f4f7); ch.position.set(-0.95 + i * 0.95, 2.55, -7.4); b.add(ch);
       }
       const bldg = box(7.5, 3.6, 1.2, 0xe6e2d8); bldg.position.set(4.6, 1.8, -8.4); b.add(bldg);
       for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) {
@@ -961,8 +1127,9 @@ const B3D = (() => {
       const train = box(11, 2.1, 1.5, 0xe9edf0); train.position.set(1.5, 1.55, -8.0); b.add(train);
       const stripe = box(11, 0.34, 0.06, 0x2f7fc1); stripe.position.set(1.5, 1.9, -7.22); b.add(stripe);
       for (let i = 0; i < 4; i++) { const w = box(1.5, 0.9, 0.08, 0x6fa3c9); w.position.set(-2.6 + i * 2.6, 1.9, -7.24); b.add(w); }
-      const roof = box(15, 0.2, 3.4, 0xcfd6db); roof.position.set(0, 3.3, -6.6); b.add(roof);
-      for (const sx of [-1, 1]) { const p = box(0.22, 3.1, 0.22, 0xb9c0c6); p.position.set(sx * 6, 1.75, -5.4); b.add(p); }
+      // 車頂棚:壓到天花板以下(z=-6.6 的天花板是 y≈3.13;舊值棚頂 3.4、柱頂 3.3 都被切掉)
+      const roof = box(15, 0.2, 3.4, 0xcfd6db); roof.position.set(0, 2.95, -6.6); b.add(roof);
+      for (const sx of [-1, 1]) { const p = box(0.22, 2.9, 0.22, 0xb9c0c6); p.position.set(sx * 6, 1.45, -5.4); b.add(p); }
     },
     park(b) {                                              // 公園河邊:河 + 樹 + 步道 + 長椅
       const river = new T.Mesh(new T.PlaneGeometry(26, 7), new T.MeshLambertMaterial({ color: 0x74b7d4 }));
@@ -971,7 +1138,8 @@ const B3D = (() => {
       path.rotation.x = -Math.PI / 2; path.position.set(0, 0.03, -4.6); b.add(path);
       for (const [x, s] of [[-5.4, 1], [-2.9, 0.8], [3.2, 0.95], [6.1, 0.85]]) {
         const tr = box(0.34 * s, 1.9 * s, 0.34 * s, 0x8a6440); tr.position.set(x, 0.95 * s, -6.4); b.add(tr);
-        const cr = sph(1.15 * s, 0x5f9e4c, 10); cr.position.set(x, 2.3 * s, -6.4); cr.scale.y = 0.82; b.add(cr);
+        // 樹冠壓到天花板以下(z=-6.4 的天花板是 y≈3.12;舊值冠頂 3.24 被削一刀)
+        const cr = sph(1.15 * s, 0x5f9e4c, 10); cr.position.set(x, 2.05 * s, -6.4); cr.scale.y = 0.82; b.add(cr);
       }
       const bench = box(1.5, 0.14, 0.5, 0xa9743f); bench.position.set(1.1, 0.55, -4.0); b.add(bench);
     },
@@ -1026,6 +1194,14 @@ const B3D = (() => {
       rope.visible = false; scene.add(rope);
       flash = new T.Mesh(new T.TorusGeometry(0.35, 0.06, 6, 18), new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0 }));
       scene.add(flash);
+    }
+    /* 🧑‍🌾 牧人外觀是玩家可選的(A 寫實 / B 圓萌)。shep 是整個 session 只建一次的,
+       所以換了選項要在這裡重建 —— 用「有沒有 eyes」判斷現在掛的是哪一版(只有 tsum 版有)。
+       ⚠ 一定要 dispose 舊的幾何/材質,不然每換一次就漏一組(手機會愈跑愈熱)。*/
+    if (shep && !!shep.userData.eyes !== !!save.shepTsum) {
+      scene.remove(shep);
+      shep.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); });
+      shep = makeShepherd(); scene.add(shep);
     }
     if (beast) { scene.remove(beast); beast = null; }
     if (kind) { beast = makeBeast(kind); scene.add(beast); }
@@ -1115,7 +1291,9 @@ const B3D = (() => {
        ★ 眨眼週期每隻刻意錯開(blinkT 不同)——candy-tsum-kit 的鐵則:絕不同步眨,同步會像機器。
        ★ 尊重「減少動態」偏好(RM):會暈的孩子/長輩把系統設定打開就不彈不眨。
        ★ 只動 scale,不碰 rotation.z / position.y —— 那兩個外面的甩杖·被撲·發抖動畫在用。*/
-    for (const o of [sheep, beast]) {
+    /* shep 也放進來:圓萌版(B)有 eyes → 會跟動物一樣眨眼+Q 彈;
+       寫實版(A)的 userData 沒有 eyes → 下面那行 continue 自動跳過,不必再加判斷。 */
+    for (const o of [sheep, beast, shep]) {
       if (!o || !o.userData.eyes) continue;
       const bt = o.userData.blinkT || 0;
       if (!RM) {
