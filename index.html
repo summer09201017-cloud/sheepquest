@@ -91,6 +91,8 @@
   <button class="btn" id="locBtn">📍 重新定位</button>
   <button class="btn" id="walkBtn" style="display:none">🚶 往最近的羊走一步</button>
   <button class="btn" id="walkBeastBtn" style="display:none" title="客廳練習用:直接走向被野獸叼住的那隻羊,不用碰運氣">⚔️ 練習救羊(走向有獸的)</button>
+  <!-- 🏞 教室/客廳示範用:不必真的走到淡江大橋也能看那個背景 -->
+  <select class="btn" id="sceneSel" style="display:none" title="手動指定 3D 戰鬥背景(示範用;選了就不會連外查地點)"></select>
 </div>
 <div id="toast"></div>
 
@@ -116,8 +118,12 @@
     <button class="btn primary" id="startBtn" disabled>📍 用 GPS 開始找羊</button>
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
-  <p class="hint" style="margin-top:10px">隱私:你的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑</p>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v7(2026-07-30 🔊 曉臻人聲經文+唸出處)——看不到上面的「🔊 聽經文」就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <!-- ⚠ 0730 這段文案必須跟著功能改成實話:加了「背景跟著地點變」之後,會送出粗略位置去查地名。
+       原本寫「你的位置絕不上傳」,不改就是對家長說謊。★ 改文案與加開關是這個功能的必要條件,不是選配。-->
+  <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
+    🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。不想連外查就把下面的勾勾打開。</p>
+  <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v8(2026-07-30 🧸 tsum 圓萌造型 + 🏞 背景跟著地點變)——看不到圓圓的動物就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -221,6 +227,74 @@ const TTS = {
   },
 };
 
+/* ── 📍 這裡是哪裡?→ 3D 戰鬥背景跟著真實地點換(使用者 0730:「跟皮克敏一樣」)──
+   場景共 6 種通用 + 2 個招牌地標(淡江大橋、喬治高職),造型見 B3D 裡的 BACKDROPS。
+   ★ 判定順序:手動指定 > 裝置端快取 > 線上查(可關) > 預設草地。查不到永遠不卡住遊戲。 */
+const SCENE_NAME = { grass: '草地', bridge: '大橋', school: '校園', station: '捷運站',
+                     park: '公園河邊', street: '街道', tamkang: '淡江大橋 ★', george: '喬治高職 ★' };
+const PLACE = {
+  scene: 'grass',          // 這一場戰鬥要用的背景
+  label: '',               // 查到的地名(只顯示在畫面上,不上傳、不寫進羊圈紀錄)
+  forced: null,            // 客廳模式手動選的場景(有值就完全不查)
+
+  /* 粗化到約 0.01 度 ≈ 1.1 公里的方格。刻意不用更細——細了就等於交出精確位置。 */
+  coarse(lat, lng) { return [Math.round(lat * 100) / 100, Math.round(lng * 100) / 100]; },
+
+  /* 地名/分類文字 → 場景。招牌地標(手工做細的)優先比對名字。 */
+  decide(txt) {
+    const s = (txt || '').toLowerCase();
+    if (/淡江大橋|tamkang bridge/.test(s)) return 'tamkang';
+    if (/喬治(高職|高級|工商)?|george.*(vocational|high|commercial)/.test(s)) return 'george';
+    if (/大橋|橋樑|bridge|viaduct/.test(s)) return 'bridge';
+    if (/捷運|車站|月台|station|railway|metro|mrt|platform/.test(s)) return 'station';
+    if (/學校|國小|國中|高中|高職|大學|校園|school|college|university|campus/.test(s)) return 'school';
+    if (/公園|河濱|綠地|步道|河|溪|湖|park|garden|river|riverside|water|lake/.test(s)) return 'park';
+    if (/路|街|大道|巷|市場|商店|road|street|avenue|shop|market|residential/.test(s)) return 'street';
+    return 'grass';
+  },
+
+  /* 每場戰鬥開始前叫一次。永遠 resolve,絕不 reject——查不到就是草地。 */
+  async resolve(lat, lng) {
+    this.label = '';
+    if (this.forced) { this.scene = this.forced; this.label = SCENE_NAME[this.forced] || ''; return this.scene; }
+    if (save.noGeo || !lat || !lng) { this.scene = 'grass'; return this.scene; }
+    const [cy, cx] = this.coarse(lat, lng);
+    const key = cy + ',' + cx;
+    const hit = (save.places || {})[key];                  // 裝置端快取:同一帶只查一次
+    if (hit) { this.scene = hit.s || 'grass'; this.label = hit.n || ''; return this.scene; }
+    const found = await this.lookup(cy, cx);               // ← 連外查詢(下面那個函式,可整段拿掉)
+    if (found) {
+      this.scene = found.s; this.label = found.n;
+      save.places = save.places || {}; save.places[key] = found; persist();   // 存了就會讀(見上面 hit)
+    } else { this.scene = 'grass'; this.label = ''; }
+    return this.scene;
+  },
+
+  /* ── 查「這一帶有什麼」(使用者 2026-07-30 明確授權採用此做法)──
+     ⚠ 我先反對過:這會把位置送到第三方。使用者知情並選了這條路 → 照做,但用最小暴露:
+       ① 只送**粗化後的方格中心點**(約 1 公里),不送手機拿到的精確座標;
+       ② 一個方格只查一次(結果存裝置端),不是邊走邊回報;
+       ③ 3 秒沒回應就放棄,場景退回草地,絕不讓孩子等;
+       ④ 開場隱私文案已改成實話,並提供「不要連外查地點」開關(save.noGeo)。
+     用 Nominatim reverse:一個請求就帶回 name/category/type,不必寫查詢語言;
+     它的規範是每秒最多一次,我們有快取又一場只問一次,遠低於上限。 */
+  async lookup(cy, cx) {
+    try {
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), 3000);
+      const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16'
+        + '&lat=' + encodeURIComponent(cy) + '&lon=' + encodeURIComponent(cx);
+      const r = await fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } });
+      if (!r.ok) return null;
+      const j = await r.json();
+      const a = j.address || {};
+      const name = j.name || a.road || a.suburb || a.neighbourhood || '';
+      const s = this.decide([j.name, j.category, j.type, j.display_name].join(' '));
+      return { s, n: name || SCENE_NAME[s] || '' };
+    } catch (e) { return null; }     // 沒網路/超時/被擋 → 交給呼叫者用草地
+  },
+};
+
 /* ── 確定性生成 ── */
 const CELL = 0.0011;                                    // ≈ 110m 格
 const EPOCH = () => Math.floor(Date.now() / (4 * 3600e3)); // 4 小時換一批羊
@@ -297,11 +371,19 @@ function refreshSheep() {
     : `🪢 帶回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`;
   $('count').textContent = flockCount();
 }
+let _placeCell = null;
 function onPos(lat, lng) {
   pos = { lat, lng };
   if (!map) initMap();
   youMarker.setLatLng([lat, lng]);
   refreshSheep();
+  /* 🏞 走路的時候就先把「這一帶是哪裡」查好,不要等到開打才查(不然要等 3 秒才看得到背景)。
+     只在**跨到新的 1 公里方格**時才查一次 —— 邊走邊查等於一直回報行蹤,那是不必要的暴露。*/
+  const cell = PLACE.coarse(lat, lng).join(',');
+  if (cell !== _placeCell) {
+    _placeCell = cell;
+    PLACE.resolve(lat, lng).then(() => { if (PLACE.label) toast('🏞 這一帶是「' + PLACE.label + '」——等一下就在這裡救羊', 3200); });
+  }
 }
 function toast(t, ms) { $('toast').textContent = t; $('toast').style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => $('toast').style.display = 'none', ms || 2600); }
 
@@ -320,8 +402,10 @@ $('startBtn').onclick = () => {
 $('demoBtn').onclick = () => {
   demo = true;
   $('introPanel').classList.remove('on');
-  $('walkBtn').style.display = '';
-  $('walkBeastBtn').style.display = '';
+  // ★ 一律寫明確值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑:CSS 藏的元素清 inline 還原不了)
+  $('walkBtn').style.display = 'inline-block';
+  $('walkBeastBtn').style.display = 'inline-block';
+  $('sceneSel').style.display = 'inline-block';   // 🏞 示範用的換背景下拉
   onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕虛擬走路
   toast('🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 4200);
 };
@@ -530,6 +614,23 @@ function openFlock() {
   $('flockGrid').innerHTML = html;
   $('flockPanel').classList.add('on');
 }
+/* 🔒 不要連外查地點:勾了就完全不連外,背景一律草地(存進既有存檔,不新開 localStorage 鍵) */
+$('noGeoChk').checked = !!save.noGeo;
+$('noGeoChk').onchange = e => {
+  save.noGeo = !!e.target.checked; persist();
+  if (save.noGeo) { PLACE.scene = 'grass'; PLACE.label = ''; }
+};
+/* 🏞 手動選背景(示範用)。填選單 + 選了就不連外查 */
+(() => {
+  const sel = $('sceneSel');
+  sel.innerHTML = '<option value="">🏞 背景:自動(依地點)</option>'
+    + Object.keys(SCENE_NAME).map(k => `<option value="${k}">🏞 背景:${SCENE_NAME[k]}</option>`).join('');
+  sel.onchange = e => {
+    PLACE.forced = e.target.value || null;
+    if (PLACE.forced) { PLACE.scene = PLACE.forced; PLACE.label = SCENE_NAME[PLACE.forced]; toast('🏞 背景改成「' + PLACE.label + '」,下一場戰鬥就會換', 2600); }
+    else toast('🏞 背景回到「依地點自動」', 2200);
+  };
+})();
 $('ttsBtn').onclick = () => TTS.toggle();
 // 逐字和合本(0730 用 cuv 查驗過;原稿混了太 18:12 又掛錯出處)+ 出處一起唸(鐵律)
 $('introSpeak').onclick = () => TTS.speakScripture(
@@ -566,6 +667,41 @@ const B3D = (() => {
   const box = (w, h, d, c) => new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshLambertMaterial({ color: c }));
   const cyl = (rt, rb, h, c, seg = 10) => new T.Mesh(new T.CylinderGeometry(rt, rb, h, seg), new T.MeshLambertMaterial({ color: c }));
   const sph = (r, c, s = 12) => new T.Mesh(new T.SphereGeometry(r, s, s), new T.MeshLambertMaterial({ color: c }));
+  // 壓扁/拉長的球:tsum 造型的主要積木(圓圓的一團,不是方塊)
+  const blob = (r, c, sx = 1, sy = 1, sz = 1, s = 14) => { const m = sph(r, c, s); m.scale.set(sx, sy, sz); return m; };
+
+  /* ── 🧸 tsum 圓萌臉(使用者 0730:「做成 3D TSUM 的版本,可愛一點 圓圓的」)──
+     借 candy-tsum-kit 的「臉 v3」精神翻成 3D:**大眼 + 水潤雙高光 + 深笑 + 腮紅 + 會眨眼**。
+     ★ 臉一律做在 local **+x** 面 —— 全系列的朝向算式(SHEEP_FACE、獸的 rotation.y)都假設頭朝 +x,
+       臉做錯面就會變回「屁股對螢幕」那個 0730 被退件的問題。
+     回傳 eyes 陣列給待機迴圈眨眼用(各隻週期刻意錯開,絕不同步眨=tsum-kit 的鐵則)。*/
+  function tsumFace(head, o) {
+    const R = o.r, front = R * 0.86, eyeR = R * o.eye, dark = o.eyeColor ?? 0x241a12;
+    const eyes = [];
+    for (const sz of [-1, 1]) {
+      const e = sph(eyeR, dark, 12);                       // 大眼(tsum 的靈魂:眼睛要大到誇張)
+      e.position.set(front, R * 0.1, sz * R * o.eyeGap);
+      head.add(e); eyes.push(e);
+      const hi = sph(eyeR * 0.34, 0xffffff, 8);            // 水潤高光 ①(大,偏上外側)
+      hi.position.set(front + eyeR * 0.62, R * 0.1 + eyeR * 0.38, sz * (R * o.eyeGap + eyeR * 0.28));
+      head.add(hi);
+      const hi2 = sph(eyeR * 0.16, 0xffffff, 6);           // 水潤高光 ②(小,偏下內側)
+      hi2.position.set(front + eyeR * 0.6, R * 0.1 - eyeR * 0.42, sz * (R * o.eyeGap - eyeR * 0.3));
+      head.add(hi2);
+      if (o.blush) {                                       // 腮紅:tsum 的可愛度大半來自這個
+        const bl = blob(R * 0.17, o.blush, 0.4, 0.75, 1, 8);
+        bl.position.set(front * 0.86, -R * 0.16, sz * R * (o.eyeGap + 0.34));
+        head.add(bl);
+      }
+    }
+    // 深笑:半圈甜甜圈當嘴,開口朝下=笑;放在鼻子下面一點
+    const smile = new T.Mesh(new T.TorusGeometry(R * 0.2, R * 0.045, 6, 14, Math.PI),
+      new T.MeshLambertMaterial({ color: 0x5b3a2a }));
+    smile.position.set(front + R * 0.06, -R * (o.mouthY ?? 0.3), 0);
+    smile.rotation.set(0, Math.PI / 2, Math.PI);           // 轉到面向 +x、開口朝下
+    head.add(smile);
+    return eyes;
+  }
 
   /* ── 牧人(3d-figure-kit 矩形身體 + 長腿 v2 比例)── */
   function makeShepherd() {
@@ -621,34 +757,63 @@ const B3D = (() => {
     return g;
   }
 
-  /* ── 野獸(四足;腿在軀幹下方四角,頭在前端 +x)── */
+  /* ── 🧸 野獸(tsum 圓萌版;頭在前端 +x)──
+     使用者 0730:「羊與熊與獅子與狼,請做成 3D TSUM 的版本,可愛一點 圓圓的」。
+     ★ tsum 的造型規則(從方塊野獸改過來的三件事):
+       ① 身體=**一顆大球壓成豆子**(不是長方體),頭幾乎跟身體一樣大、直接黏在前面 → 頭身一體的圓團;
+       ② 四肢**短胖到只露一點**(小圓球腳),沒有膝關節這種寫實結構;
+       ③ 臉走 tsumFace:大眼+水潤雙高光+深笑+腮紅,會眨眼。
+     ★ 保留的東西(不可以動,不然動畫會壞):
+       · userData 的 legs / headJ / tailJ / tailZ / kind —— 甩杖、被撲、獸逃走、擺尾都靠這些;
+       · 頭朝 local +x —— 全系列朝向算式的前提;
+       · BEAST_COLORS 那張表 —— 死神模式黑化要一鍵換色;
+       · 每隻仍要認得出來:獅有鬃毛環、熊圓耳短尾、狼尖耳長蓬尾。
+     ★ 也刻意保留「不恐怖」:圓臉+笑嘴+腮紅,獸只是被趕走,不流血不死亡特寫(這是給主日學孩子玩的)。*/
   function makeBeast(kind) {
     const C = BEAST_COLORS[kind] || BEAST_COLORS.lion;
     const g = new T.Group();
-    const long = kind === 'wolf' ? 1.62 : 1.45, tall = kind === 'bear' ? 0.72 : 0.6, wide = kind === 'bear' ? 0.8 : (kind === 'wolf' ? 0.58 : 0.7);
-    const bodyY = kind === 'wolf' ? 0.82 : 0.86;
-    const body = box(long, tall, wide, C.body); body.position.y = bodyY; g.add(body);
-    const rump = box(long * 0.42, tall * 0.92, wide * 0.98, C.dark); rump.position.set(-long * 0.3, bodyY, 0); g.add(rump);
+    // 圓團身體:半徑大、往前後拉一點、上下壓一點 = 豆子形。熊最胖、狼稍長。
+    const R = kind === 'bear' ? 0.62 : kind === 'wolf' ? 0.54 : 0.58;
+    const bodyY = R + 0.16;                                        // 腳只露一小截,身體幾乎坐在地上
+    const body = blob(R, C.body, kind === 'wolf' ? 1.34 : 1.18, 0.94, 1.06);
+    body.position.y = bodyY; g.add(body);
+    const rump = blob(R * 0.72, C.dark, 1, 0.94, 1);               // 屁股一小團深色,讓側面有層次
+    rump.position.set(-R * (kind === 'wolf' ? 0.86 : 0.72), bodyY - R * 0.04, 0); g.add(rump);
+
+    // 四隻短胖腳(只露一點點的小圓球)——仍放進 userData.legs 保持合約
     const legs = [];
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {          // ★四腿接在軀幹下方四角
-      const j = new T.Group(); j.position.set(sx * long * 0.32, bodyY - tall / 2, sz * wide * 0.32);
-      const up = box(0.17, (bodyY - tall / 2) * 0.62, 0.17, C.body); up.position.y = -(bodyY - tall / 2) * 0.31; j.add(up);
-      const lo = box(0.15, (bodyY - tall / 2) * 0.44, 0.15, C.dark); lo.position.y = -(bodyY - tall / 2) * 0.82; j.add(lo);
-      const paw = box(0.2, 0.1, 0.24, C.dark); paw.position.set(0, -(bodyY - tall / 2) + 0.05, 0.03); j.add(paw);
-      g.add(j); legs.push(j);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const j = new T.Group();
+      j.position.set(sx * R * 0.62, bodyY - R * 0.82, sz * R * 0.52);
+      const paw = blob(R * 0.27, C.dark, 1.1, 0.8, 1.1, 10);
+      j.add(paw); g.add(j); legs.push(j);
     }
-    // 頭在前端(+x);獅加鬃毛環、熊圓耳加壯、狼長吻尖耳
-    const headJ = new T.Group(); headJ.position.set(long * 0.55, bodyY + 0.1, 0); g.add(headJ);
-    const skull = box(kind === 'wolf' ? 0.42 : 0.46, 0.4, kind === 'wolf' ? 0.36 : 0.42, C.body); headJ.add(skull);
-    const snout = box(kind === 'wolf' ? 0.34 : 0.24, 0.2, 0.24, C.dark); snout.position.set(kind === 'wolf' ? 0.34 : 0.3, -0.07, 0); headJ.add(snout);
+
+    // 頭:幾乎和身體一樣大的圓球,黏在前面(tsum 的比例就是頭大身大、四肢極小)
+    const headJ = new T.Group();
+    headJ.position.set(R * (kind === 'wolf' ? 1.06 : 0.94), bodyY + R * 0.34, 0); g.add(headJ);
+    const HR = R * 0.82;
+    const skull = blob(HR, C.body, 1, 0.97, 1); headJ.add(skull);
+    // 圓鼻吻(狼稍長一點但仍是圓的)+ 小黑鼻頭
+    const snout = blob(HR * (kind === 'wolf' ? 0.56 : 0.48), C.dark, kind === 'wolf' ? 1.5 : 1.15, 0.82, 1);
+    snout.position.set(HR * 0.72, -HR * 0.24, 0); headJ.add(snout);
+    const nose = blob(HR * 0.17, 0x2b1c14, 1.2, 0.85, 1, 8);
+    nose.position.set(HR * (kind === 'wolf' ? 1.34 : 1.14), -HR * 0.16, 0); headJ.add(nose);
+    // 耳朵:熊=圓耳、獅=小圓耳、狼=圓底尖耳(仍是圓的,不做尖三角)
     for (const sz of [-1, 1]) {
-      const eye = box(0.06, 0.06, 0.04, C.eye); eye.position.set(0.2, 0.08, sz * 0.13); headJ.add(eye);
-      const ear = kind === 'bear' ? sph(0.09, C.dark, 8) : box(0.09, 0.14, 0.05, C.dark);
-      ear.position.set(-0.08, 0.24, sz * 0.15); headJ.add(ear);
+      const ear = kind === 'wolf'
+        ? blob(HR * 0.3, C.dark, 0.6, 1.45, 0.85, 10)
+        : blob(HR * (kind === 'bear' ? 0.34 : 0.28), C.dark, 1, 1, 0.6, 10);
+      ear.position.set(-HR * 0.1, HR * (kind === 'wolf' ? 0.92 : 0.82), sz * HR * 0.62);
+      headJ.add(ear);
+      const inner = sph(HR * 0.13, 0xd79a94, 8);                   // 耳內粉色一點,更萌
+      inner.position.set(-HR * 0.06, HR * (kind === 'wolf' ? 0.98 : 0.84), sz * HR * 0.6);
+      headJ.add(inner);
     }
-    if (kind === 'lion') {
-      const mane = new T.Mesh(new T.TorusGeometry(0.34, 0.13, 8, 16), new T.MeshLambertMaterial({ color: C.mane }));
-      mane.rotation.y = Math.PI / 2; mane.position.set(-0.06, 0, 0); headJ.add(mane);
+    const eyes = tsumFace(headJ, { r: HR, eye: 0.3, eyeGap: 0.36, blush: 0xe08b86, mouthY: 0.34, eyeColor: C.eye });
+    if (kind === 'lion') {                                          // 獅子的招牌:鬃毛環
+      const mane = new T.Mesh(new T.TorusGeometry(HR * 1.12, HR * 0.38, 8, 18), new T.MeshLambertMaterial({ color: C.mane }));
+      mane.rotation.y = Math.PI / 2; mane.position.set(-HR * 0.12, 0, 0); headJ.add(mane);
     }
     /* ★ 尾巴(0730 使用者退件「狼與獅子要加上尾巴」)——三獸本來都有,但問題有兩個:
        ① 太細(半徑 0.03~0.05,在 1.45 長的身體旁邊等於一根牙籤);
@@ -656,17 +821,17 @@ const B3D = (() => {
        改法:①加粗加長 ②做成**關節 tailJ**、在待機迴圈裡左右擺 —— 會動的東西一定看得見。
        cyl 是沿 local +y 建的,所以 mesh 往 +y 推半個長度,關節轉 z 讓它朝後上方翹。*/
     const tailJ = new T.Group();
-    tailJ.position.set(-long * 0.5, bodyY + 0.06, 0); g.add(tailJ);
-    const tLen = kind === 'wolf' ? 0.82 : kind === 'bear' ? 0.32 : 0.7;   // 狼最長蓬鬆、熊只有一小截
-    const tRad = kind === 'bear' ? 0.085 : 0.062;
-    const tail = cyl(tRad * 0.85, tRad, tLen, kind === 'lion' ? C.body : C.dark);
-    tail.position.y = tLen / 2; tailJ.add(tail);
-    if (kind === 'lion') { const tuft = sph(0.12, C.mane, 10); tuft.position.y = tLen + 0.02; tailJ.add(tuft); }
-    if (kind === 'wolf') for (const f of [0.42, 0.68, 0.92]) {           // 狼尾蓬鬆:沿著尾巴串幾顆毛球
-      const fur = sph(0.105, C.dark, 8); fur.position.y = tLen * f; tailJ.add(fur);
-    }
+    tailJ.position.set(-R * (kind === 'wolf' ? 1.28 : 1.1), bodyY + R * 0.1, 0); g.add(tailJ);
+    const tLen = kind === 'wolf' ? 0.66 : kind === 'bear' ? 0.24 : 0.56;   // 狼最長蓬鬆、熊只有一小截
+    // tsum 版尾巴:不用細圓柱,改成一串由小到大的毛球(圓圓的、看得清楚)
+    const balls = kind === 'bear' ? [0.5, 1.0] : kind === 'wolf' ? [0.28, 0.52, 0.76, 1.0] : [0.35, 0.7, 1.0];
+    balls.forEach((f, i) => {
+      const r = (kind === 'bear' ? 0.13 : 0.105) * (0.8 + 0.28 * f);
+      const b = sph(r, i === balls.length - 1 && kind === 'lion' ? C.mane : C.dark, 10);
+      b.position.y = tLen * f; tailJ.add(b);
+    });
     tailJ.rotation.z = kind === 'wolf' ? 1.15 : kind === 'bear' ? 0.8 : 0.95;
-    g.userData = { legs, headJ, kind, tailJ, tailZ: tailJ.rotation.z };
+    g.userData = { legs, headJ, kind, tailJ, tailZ: tailJ.rotation.z, eyes, blinkT: kind === 'wolf' ? 1.7 : kind === 'bear' ? 3.1 : 0.4 };
     return g;
   }
   /* ★★ 羊朝向鐵則(0730 使用者退件:「羊是屁股對著螢幕」)——和獸同一套算法,別再各處各寫一個數字。
@@ -676,25 +841,157 @@ const B3D = (() => {
      新值 -2.2:頭 →(cos-2.2, -sin-2.2)=(-0.59, +0.81)=偏左(牧人那側)但**強烈朝鏡頭** → 臉看得清楚。
      (獸是 -π+0.52 →(-0.87,+0.50):兩者都朝左前方,獸從後面咬住、羊向前望牧人,不會互看屁股。)*/
   const SHEEP_FACE = -2.2;
+  /* 🧸 羊(tsum 圓萌版)——羊毛用**好幾顆重疊的球**堆出凹凸,這既最像羊毛也最 tsum;
+     臉是深色小圓球+大眼腮紅深笑。腳只露一點點小圓球。頭一律在 local +x(見上面朝向鐵則)。*/
   function makeSheep() {
     const g = new T.Group();
-    const wool = 0xfaf7f0;
-    const b = box(0.44, 0.3, 0.3, wool); b.position.y = 0.34; g.add(b);
-    const h = box(0.2, 0.2, 0.18, 0x3f3a34); h.position.set(0.28, 0.44, 0); g.add(h);
-    for (const sz of [-1, 1]) { const e = box(0.06, 0.09, 0.04, 0x3f3a34); e.position.set(0.24, 0.55, sz * 0.09); g.add(e); }
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const l = box(0.07, 0.2, 0.07, 0x3f3a34); l.position.set(sx * 0.14, 0.1, sz * 0.1); g.add(l);
+    const wool = 0xfaf7f0, face = 0x4a4038;
+    const R = 0.3, bodyY = 0.33;
+    const b = blob(R, wool, 1.24, 1.0, 1.06); b.position.y = bodyY; g.add(b);   // 主體圓團
+    // 羊毛凹凸:繞著身體黏幾顆小球(決定性擺放,不用隨機,才不會每次長不一樣)
+    for (const [ax, ay, az, s] of [[-0.62, 0.5, 0, 0.62], [-0.2, 0.72, 0.34, 0.5], [-0.2, 0.72, -0.34, 0.5],
+                                   [0.42, 0.62, 0, 0.46], [-0.86, 0.06, 0.3, 0.44], [-0.86, 0.06, -0.3, 0.44],
+                                   [0, 0.34, 0.9, 0.42], [0, 0.34, -0.9, 0.42]]) {
+      const w = sph(R * s, wool, 10);
+      w.position.set(R * ax * 1.2, bodyY + R * ay * 0.62, R * az);
+      g.add(w);
+    }
+    // 臉:深色小圓球黏在前面(+x)
+    const headJ = new T.Group(); headJ.position.set(R * 1.06, bodyY + R * 0.28, 0); g.add(headJ);
+    const HR = R * 0.56;
+    headJ.add(blob(HR, face, 1, 1.04, 0.94));
+    const crown = sph(HR * 0.78, wool, 10); crown.position.set(-HR * 0.34, HR * 0.62, 0); headJ.add(crown); // 額前一撮捲毛
+    for (const sz of [-1, 1]) {                                 // 圓垂耳
+      const ear = blob(HR * 0.42, face, 0.55, 0.85, 1.25, 10);
+      ear.position.set(-HR * 0.12, HR * 0.12, sz * HR * 1.02); headJ.add(ear);
+    }
+    const eyes = tsumFace(headJ, { r: HR, eye: 0.33, eyeGap: 0.38, blush: 0xe09a95, mouthY: 0.42, eyeColor: 0x1e1812 });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {        // 短胖小腳
+      const l = blob(R * 0.19, face, 1, 0.9, 1, 10);
+      l.position.set(sx * R * 0.5, bodyY - R * 0.92, sz * R * 0.45); g.add(l);
     }
     /* ★ 羊尾巴(0730 使用者退件)——這隻真的完全沒有尾巴,不是看不到而是沒做。
        羊頭在 +x,所以尾巴接在後端 -x 的上緣;一小截+一顆毛球,朝後上方翹,待機時輕輕搖。*/
-    const tailJ = new T.Group(); tailJ.position.set(-0.21, 0.42, 0); g.add(tailJ);
+    const tailJ = new T.Group(); tailJ.position.set(-R * 1.2, bodyY + R * 0.3, 0); g.add(tailJ);
     // 尾巴用「略深的米色」不用純白:截圖驗收發現白毛球長在白羊身上,對比太低看不出形狀
     const tailW = 0xe6dcc8;
-    const stub = cyl(0.05, 0.062, 0.15, tailW); stub.position.y = 0.075; tailJ.add(stub);
-    const puff = sph(0.095, tailW, 10); puff.position.y = 0.17; tailJ.add(puff);
+    const puff = sph(R * 0.34, tailW, 10); puff.position.y = R * 0.34; tailJ.add(puff);
+    const puff2 = sph(R * 0.22, tailW, 8); puff2.position.y = R * 0.66; tailJ.add(puff2);
     tailJ.rotation.z = 1.15;
-    g.userData = { tailJ, tailZ: 1.15 };
+    g.userData = { tailJ, tailZ: 1.15, eyes, blinkT: 2.4 };
     return g;
+  }
+
+  /* ── 🏞 背景場景:3D 戰鬥背景跟著真實地點換(使用者 0730:「跟皮克敏一樣」)──
+     ★ 三條設計約束,不是裝飾而是「這關還玩不玩得動」的關鍵:
+       ① **背景絕不可以搶戲**:孩子要看清楚紅色攻擊預告線、綠區指針、獸和羊的輪廓。
+          所以景物一律「站到外圈」(|x| > 2.6 或 z < -2.4)、彩度壓低、不擋中央舞台;
+          天空色也只微調,不做誇張漸層(投影到教室前面時對比一亂就看不懂該按什麼)。
+       ② **手機效能**:每個場景 ≤ 16 個積木、不開陰影;three.js 本身已經 1.2MB,別再加負擔。
+       ③ **可整段拿掉**:全部掛在 backdrop 這個 Group 底下,clear 掉就回到原本的草地,不傷玩法。
+     招牌地標(手工做細,孩子一看就喊「這是我們那裡」):tamkang 淡江大橋、george 喬治高職。
+     其餘走 6 種通用場景,走到沒登記的地方也不會是同一片草地。*/
+  let backdrop = null;
+  const SKY = {                                            // [上, 下] 天空漸層(CSS 用,壓得很淡)
+    grass: ['#bfe6f7', '#e8f6e2'], bridge: ['#a9dcf5', '#dff0f7'], school: ['#c8e6fa', '#eef4e4'],
+    station: ['#cfd8e0', '#eceff2'], park: ['#b6e3f2', '#e4f4e0'], street: ['#ccdae8', '#eef1f3'],
+    tamkang: ['#9fd6f2', '#dceff6'], george: ['#c8e6fa', '#eef4e4'],
+  };
+  function clearBackdrop() {
+    if (!backdrop) return;
+    backdrop.traverse(o => { if (o !== backdrop) { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); } });
+    while (backdrop.children.length) backdrop.remove(backdrop.children[0]);
+  }
+  /* 每個場景=一個把積木塞進 backdrop 的函式。座標一律外圈,別擋中央。 */
+  const BACKDROPS = {
+    grass(b) {                                             // 原本的草叢(維持不變=預設樣子)
+      for (let i = 0; i < 7; i++) {
+        const t = i / 7 * Math.PI * 2, r = 3.4 + (i % 3) * 0.9;
+        const bush = sph(0.3 + (i % 2) * 0.12, i % 2 ? 0x6fae55 : 0x5d9a48, 8);
+        bush.position.set(Math.cos(t) * r, 0.16, Math.sin(t) * r - 1); bush.scale.y = 0.6; b.add(bush);
+      }
+    },
+    bridge(b) {                                            // 通用大橋:兩座橋塔 + 橋面 + 幾條拉索 + 水面
+      const water = new T.Mesh(new T.PlaneGeometry(26, 12), new T.MeshLambertMaterial({ color: 0x7fb6cf }));
+      water.rotation.x = -Math.PI / 2; water.position.set(0, 0.02, -8.5); b.add(water);
+      const deck = box(24, 0.34, 1.5, 0xc9cdd2); deck.position.set(0, 2.5, -6.4); b.add(deck);
+      for (const sx of [-1, 1]) {
+        const py = box(0.5, 5.6, 0.5, 0xdde1e4); py.position.set(sx * 5.2, 2.9, -6.4); b.add(py);
+        for (const f of [1.6, 3.0, 4.4]) {                 // 斜張拉索(細長方塊,傾斜)
+          const c = box(0.07, 4.6, 0.07, 0xaeb4ba);
+          c.position.set(sx * (5.2 - f * 0.5), 3.6, -6.4); c.rotation.z = sx * 0.42; b.add(c);
+        }
+      }
+    },
+    tamkang(b) {                                           // ★ 淡江大橋:單塔不對稱斜張橋(它的招牌就是「只有一座塔」)
+      const water = new T.Mesh(new T.PlaneGeometry(30, 14), new T.MeshLambertMaterial({ color: 0x6fa9c6 }));
+      water.rotation.x = -Math.PI / 2; water.position.set(0, 0.02, -9); b.add(water);
+      const deck = box(26, 0.36, 1.7, 0xd6dade); deck.position.set(0, 2.7, -6.8); b.add(deck);
+      const tower = box(0.62, 7.4, 0.62, 0xeef1f3); tower.position.set(-3.4, 4.0, -6.8);
+      tower.rotation.z = 0.09; b.add(tower);               // 微微傾斜=淡江大橋那根單塔的姿態
+      for (const f of [1.2, 2.4, 3.6, 4.8, 6.0]) {         // 扇形拉索全部拉向同一側
+        const c = box(0.07, 6.4, 0.07, 0xb9c0c6);
+        c.position.set(-3.4 + f * 0.72, 4.0, -6.8); c.rotation.z = -0.52 - f * 0.035; b.add(c);
+      }
+      for (const sx of [-1, 1]) { const pr = box(0.7, 2.8, 0.7, 0xc3c9ce); pr.position.set(sx * 8.5, 1.4, -6.8); b.add(pr); }
+    },
+    school(b) {                                            // 通用校園:校門 + 圍牆 + 紅色跑道 + 旗竿
+      const track = new T.Mesh(new T.RingGeometry(3.9, 5.3, 24), new T.MeshLambertMaterial({ color: 0xc4674f }));
+      track.rotation.x = -Math.PI / 2; track.position.set(0, 0.03, -3.4); b.add(track);
+      const wall = box(16, 1.1, 0.3, 0xe3ded2); wall.position.set(0, 0.55, -7.6); b.add(wall);
+      for (const sx of [-1, 1]) { const p = box(0.5, 2.2, 0.5, 0xd9cfbd); p.position.set(sx * 1.5, 1.1, -7.6); b.add(p); }
+      const lintel = box(3.6, 0.4, 0.5, 0xb9855a); lintel.position.set(0, 2.3, -7.6); b.add(lintel);
+      const pole = box(0.12, 4.2, 0.12, 0xe8e8e8); pole.position.set(-6, 2.1, -7.2); b.add(pole);
+      const flag = box(1.1, 0.7, 0.06, 0xd05a4e); flag.position.set(-5.4, 3.7, -7.2); b.add(flag);
+    },
+    george(b) {                                            // ★ 喬治高職:校門 + 校名牌 + 教學樓 + 跑道
+      BACKDROPS.school(b);
+      const sign = box(3.0, 0.8, 0.14, 0x2f5d9e); sign.position.set(0, 3.0, -7.5); b.add(sign);
+      for (const i of [0, 1, 2]) {                         // 校名牌上四個窗格代表字(不寫字,3D 字要載字型)
+        const ch = box(0.42, 0.42, 0.06, 0xf2f4f7); ch.position.set(-0.95 + i * 0.95, 3.0, -7.4); b.add(ch);
+      }
+      const bldg = box(7.5, 3.6, 1.2, 0xe6e2d8); bldg.position.set(4.6, 1.8, -8.4); b.add(bldg);
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) {
+        const w = box(0.6, 0.6, 0.08, 0x8fb6cf); w.position.set(2.2 + c * 1.2, 1.1 + r * 1.3, -7.75); b.add(w);
+      }
+    },
+    station(b) {                                           // 捷運站:月台 + 列車 + 車頂棚 + 站牌
+      const plat = box(14, 0.5, 2.6, 0xd8d4cc); plat.position.set(0, 0.25, -6.2); b.add(plat);
+      const yellow = box(14, 0.06, 0.3, 0xe8c34a); yellow.position.set(0, 0.53, -5.05); b.add(yellow);
+      const train = box(11, 2.1, 1.5, 0xe9edf0); train.position.set(1.5, 1.55, -8.0); b.add(train);
+      const stripe = box(11, 0.34, 0.06, 0x2f7fc1); stripe.position.set(1.5, 1.9, -7.22); b.add(stripe);
+      for (let i = 0; i < 4; i++) { const w = box(1.5, 0.9, 0.08, 0x6fa3c9); w.position.set(-2.6 + i * 2.6, 1.9, -7.24); b.add(w); }
+      const roof = box(15, 0.2, 3.4, 0xcfd6db); roof.position.set(0, 3.3, -6.6); b.add(roof);
+      for (const sx of [-1, 1]) { const p = box(0.22, 3.1, 0.22, 0xb9c0c6); p.position.set(sx * 6, 1.75, -5.4); b.add(p); }
+    },
+    park(b) {                                              // 公園河邊:河 + 樹 + 步道 + 長椅
+      const river = new T.Mesh(new T.PlaneGeometry(26, 7), new T.MeshLambertMaterial({ color: 0x74b7d4 }));
+      river.rotation.x = -Math.PI / 2; river.position.set(0, 0.02, -8.6); b.add(river);
+      const path = new T.Mesh(new T.PlaneGeometry(24, 1.4), new T.MeshLambertMaterial({ color: 0xd9cdb4 }));
+      path.rotation.x = -Math.PI / 2; path.position.set(0, 0.03, -4.6); b.add(path);
+      for (const [x, s] of [[-5.4, 1], [-2.9, 0.8], [3.2, 0.95], [6.1, 0.85]]) {
+        const tr = box(0.34 * s, 1.9 * s, 0.34 * s, 0x8a6440); tr.position.set(x, 0.95 * s, -6.4); b.add(tr);
+        const cr = sph(1.15 * s, 0x5f9e4c, 10); cr.position.set(x, 2.3 * s, -6.4); cr.scale.y = 0.82; b.add(cr);
+      }
+      const bench = box(1.5, 0.14, 0.5, 0xa9743f); bench.position.set(1.1, 0.55, -4.0); b.add(bench);
+    },
+    street(b) {                                            // 街道:幾棟樓 + 斑馬線 + 路燈
+      const road = new T.Mesh(new T.PlaneGeometry(26, 4), new T.MeshLambertMaterial({ color: 0x9b9fa4 }));
+      road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -6.4); b.add(road);
+      for (let i = 0; i < 7; i++) { const z = box(0.5, 0.05, 3.4, 0xeef0f1); z.position.set(-3 + i, 0.05, -6.4); b.add(z); }
+      for (const [x, h, c] of [[-6.6, 4.4, 0xdcd6c8], [-3.4, 3.0, 0xcdd6dc], [3.6, 5.0, 0xd8ccc0], [7.2, 3.4, 0xd0d6cf]]) {
+        const bl = box(2.6, h, 1.6, c); bl.position.set(x, h / 2, -9.2); b.add(bl);
+      }
+      const lamp = box(0.14, 3.4, 0.14, 0x7d858b); lamp.position.set(-2.2, 1.7, -4.8); b.add(lamp);
+      const head = box(0.7, 0.18, 0.3, 0xe8e2c4); head.position.set(-1.9, 3.4, -4.8); b.add(head);
+    },
+  };
+  function buildBackdrop(kind) {
+    if (!backdrop) return;
+    clearBackdrop();
+    (BACKDROPS[kind] || BACKDROPS.grass)(backdrop);
+    const sky = SKY[kind] || SKY.grass;
+    if (host) host.style.background = `linear-gradient(${sky[0]},${sky[1]})`;
   }
 
   /* ── 動畫小引擎(每個動作=一段時間函式;動畫期間 lock>0 → 指針暫停=回合感)── */
@@ -721,11 +1018,8 @@ const B3D = (() => {
       const dl = new T.DirectionalLight(0xffffff, 0.7); dl.position.set(3, 6, 4); scene.add(dl);
       const ground = new T.Mesh(new T.CircleGeometry(9, 32), new T.MeshLambertMaterial({ color: 0x86c06a }));
       ground.rotation.x = -Math.PI / 2; scene.add(ground);
-      for (let i = 0; i < 7; i++) {                                // 幾叢草(決定性擺放,不用 random)
-        const t = i / 7 * Math.PI * 2, r = 3.2 + (i % 3) * 0.9;
-        const bush = sph(0.3 + (i % 2) * 0.12, i % 2 ? 0x6fae55 : 0x5d9a48, 8);
-        bush.position.set(Math.cos(t) * r, 0.16, Math.sin(t) * r - 1); bush.scale.y = 0.6; scene.add(bush);
-      }
+      // 背景景物全部掛在這個群組底下 → 換地點時整組換掉,不動舞台上的人與獸
+      backdrop = new T.Group(); scene.add(backdrop);
       shep = makeShepherd(); scene.add(shep);
       sheep = makeSheep(); scene.add(sheep);
       rope = new T.Mesh(new T.TorusGeometry(0.26, 0.032, 6, 16), new T.MeshLambertMaterial({ color: 0xd9b26a }));
@@ -735,6 +1029,7 @@ const B3D = (() => {
     }
     if (beast) { scene.remove(beast); beast = null; }
     if (kind) { beast = makeBeast(kind); scene.add(beast); }
+    buildBackdrop(PLACE.scene);            // 🏞 這一場的背景=你現在站的地方(查不到就草地)
     reset(!!kind);
     host.style.display = 'block'; $('b3dHint').style.display = 'none';
     // 3D 開著就把大 emoji 收起來(手機版面有限;還原要寫**明確值** inline-block,
@@ -815,6 +1110,21 @@ const B3D = (() => {
       const t = sheep.userData.tailJ, fast = !!beast;
       t.rotation.y = Math.sin(clock * (fast ? 9 : 2.6)) * (fast ? 0.42 : 0.3);
       t.rotation.z = sheep.userData.tailZ + Math.sin(clock * (fast ? 7 : 2)) * 0.1;
+    }
+    /* 🧸 tsum 兩件靈魂:眨眼 + Q 彈呼吸(squash & stretch)
+       ★ 眨眼週期每隻刻意錯開(blinkT 不同)——candy-tsum-kit 的鐵則:絕不同步眨,同步會像機器。
+       ★ 尊重「減少動態」偏好(RM):會暈的孩子/長輩把系統設定打開就不彈不眨。
+       ★ 只動 scale,不碰 rotation.z / position.y —— 那兩個外面的甩杖·被撲·發抖動畫在用。*/
+    for (const o of [sheep, beast]) {
+      if (!o || !o.userData.eyes) continue;
+      const bt = o.userData.blinkT || 0;
+      if (!RM) {
+        const ph = (clock + bt) % 3.7;                       // 每 3.7 秒眨一次,眨 0.14 秒
+        const k = ph < 0.14 ? Math.max(0.12, Math.abs(ph - 0.07) / 0.07) : 1;
+        for (const e of o.userData.eyes) e.scale.y = k;
+      }
+      const q = RM ? 1 : 1 + Math.sin(clock * (o === sheep ? 3.1 : 2.5) + bt) * 0.035;
+      o.scale.set(1 / Math.sqrt(q), q, 1 / Math.sqrt(q));     // 體積守恆的壓扁/拉長=Q 彈感
     }
     if (camShake > 0 && !RM) {
       camShake *= 0.86;
