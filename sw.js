@@ -17,7 +17,7 @@
 //                    · hook #25 攔到 #b3dHint 用 style.display='' 還原(劇場模式下會永遠不出現)
 //                    · 開場經文出處錯:「一個人若有一百隻羊,一隻走迷了路」其實是**太 18:12**,
 //                      後半才是路 15:5,卻整句標成路 15:4-6 → 已用 cuv 查驗改成路 15:4-5 逐字原文
-const CACHE = 'sheepquest-v6';
+const CACHE = 'sheepquest-v6b';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {
