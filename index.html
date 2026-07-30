@@ -125,13 +125,20 @@
   <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
   <!-- 🧑‍🌾 牧人的樣子由玩家自己選(0730 使用者拍板)。動物一律圓萌,只有「人」給選。
        放在開場面板 = 每次開 App 都看得到、隨時能換(和 🔒 同一區,不新開設定頁)。 -->
+  <!-- 🗺 腳下的地面:老師自己挑。真實地圖=最接近皮克敏「這就是我家附近」的做法。 -->
+  <label class="hint" style="display:block;margin-top:6px;font-weight:700">🗺 腳下的地面:
+    <select id="groundSel" class="btn" style="font-weight:700;padding:4px 8px">
+      <option value="grass">草地(不連網也有)</option>
+      <option value="map">真實地圖(你家附近的街道)</option>
+    </select>
+  </label>
   <label class="hint" style="display:block;margin-top:6px;font-weight:700">🧑‍🌾 牧人的樣子:
     <select id="shepStyleSel" class="btn" style="font-weight:700;padding:4px 8px">
       <option value="A">A|寫實牧人(原本的樣子)</option>
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v8(2026-07-30 🧸 tsum 圓萌動物 + 🏞 背景跟著地點變 + 🧑‍🌾 牧人樣子可選)——看不到圓圓的動物就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v9(2026-07-30 🗺 腳下可以鋪真實地圖 + 📷 可放自己拍的照片當背景;v8 的 🧸 tsum 圓萌動物與 🧑‍🌾 牧人樣子可選都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -140,6 +147,8 @@
   <div id="sheepBig">🐑</div>
   <div id="trust"></div>
   <div id="b3d"></div>
+  <!-- 🗺 用 OSM 圖磚當地面時必須標示來源(這是 OpenStreetMap 的授權要求,不是可選的裝飾) -->
+  <div id="mapCredit" class="hint" style="display:none;margin-top:2px;opacity:.75">🗺 腳下的地圖 © OpenStreetMap</div>
   <div id="b3dBar"><button class="btn" id="fsBtn" title="把 3D 戰鬥畫面放到最大(控制按鈕會留在下面)">⛶ 放大畫面</button></div>
   <div id="b3dHint" class="hint" style="display:none">3D 戰鬥畫面需要連網載入(離線時用下面的簡易版照樣能玩)。</div>
   <div id="meterBox">
@@ -628,6 +637,14 @@ $('noGeoChk').onchange = e => {
   save.noGeo = !!e.target.checked; persist();
   if (save.noGeo) { PLACE.scene = 'grass'; PLACE.label = ''; }
 };
+/* 🗺 腳下的地面(草地 / 真實地圖)——存進既有存檔,不新開 localStorage 鍵。下一場戰鬥生效。 */
+$('groundSel').value = save.mapGround ? 'map' : 'grass';
+$('groundSel').onchange = e => {
+  save.mapGround = e.target.value === 'map'; persist();
+  if (save.mapGround && save.noGeo)
+    toast('🗺 已選真實地圖,但你勾了「🔒 不要連外查地點」→ 仍會用草地。要看地圖請把那個勾勾取消', 5200);
+  else toast(save.mapGround ? '🗺 地面改成「真實地圖」,下一場戰鬥就會換' : '🗺 地面回到「草地」', 2600);
+};
 /* 🧑‍🌾 牧人的樣子(A 寫實 / B 圓萌)——玩家自己選,存進既有存檔,不新開 localStorage 鍵。
    下一場戰鬥生效(3D 舞台的牧人是只建一次的,mount() 會偵測到選項變了才重建)。 */
 $('shepStyleSel').value = save.shepTsum ? 'B' : 'A';
@@ -639,9 +656,18 @@ $('shepStyleSel').onchange = e => {
 (() => {
   const sel = $('sceneSel');
   sel.innerHTML = '<option value="">🏞 背景:自動(依地點)</option>'
-    + Object.keys(SCENE_NAME).map(k => `<option value="${k}">🏞 背景:${SCENE_NAME[k]}</option>`).join('');
+    + Object.keys(SCENE_NAME).map(k => `<option value="${k}">🏞 背景:${SCENE_NAME[k]}</option>`).join('')
+    + '<option value="__photodemo">📷 照片版示範(程式畫的假圖)</option>';
   sel.onchange = e => {
-    PLACE.forced = e.target.value || null;
+    const v = e.target.value;
+    // 📷 照片版示範:不是真實地標照片,只是讓使用者看見「照片會不會搶戲」
+    B3D.photoDemo(v === '__photodemo');
+    if (v === '__photodemo') {
+      PLACE.forced = 'tamkang'; PLACE.scene = 'tamkang'; PLACE.label = '照片版示範';
+      toast('📷 照片版示範:這是**程式畫的假圖**,不是真的淡江大橋。真的要用就把自己拍的照片存成 photos/tamkang.jpg', 6500);
+      return;
+    }
+    PLACE.forced = v || null;
     if (PLACE.forced) { PLACE.scene = PLACE.forced; PLACE.label = SCENE_NAME[PLACE.forced]; toast('🏞 背景改成「' + PLACE.label + '」,下一場戰鬥就會換', 2600); }
     else toast('🏞 背景回到「依地點自動」', 2200);
   };
@@ -671,6 +697,8 @@ const B3D = (() => {
   const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let T = null, ren = null, scene = null, cam = null, raf = null, clock = 0;
+  let ground = null, mapTex = null, mapKey = '';            // 🗺 真實地圖地面(見 buildMapGround)
+  const GRASS_HEX = 0x86c06a;                               // 草地綠(地圖邊緣要淡出成這個色才沒有接縫)
   let shep = null, beast = null, sheep = null, rope = null, flash = null, host = null;
   let lock = 0, camShake = 0, ready = false, failed = false;
   const acts = [];                                     // 進行中的動畫 {t,dur,fn,end}
@@ -1149,8 +1177,10 @@ const B3D = (() => {
         const m = new T.Mesh(new T.PlaneGeometry(w, d), new T.MeshLambertMaterial({ color: col }));
         m.rotation.x = -Math.PI / 2; m.position.set(0, 0.03, z); b.add(m);
       };
-      lane(22, 2.0, 0xb8806e, -5.6);                       // 紅土跑道
-      lane(22, 0.07, 0xeae4da, -5.02); lane(22, 0.07, 0xeae4da, -6.18);   // 兩條白色跑道線
+      if (flatOK()) {                                      // 🗺 地圖地面開著就讓位(見 flatOK 註解)
+        lane(22, 2.0, 0xb8806e, -5.6);                     // 紅土跑道
+        lane(22, 0.07, 0xeae4da, -5.02); lane(22, 0.07, 0xeae4da, -6.18); // 兩條白色跑道線
+      }
       const wall = box(16, 1.1, 0.3, 0xe3ded2); wall.position.set(0, 0.55, -7.6); b.add(wall);
       for (const sx of [-1, 1]) { const p = box(0.5, 2.2, 0.5, 0xd9cfbd); p.position.set(sx * 1.5, 1.1, -7.6); b.add(p); }
       const lintel = box(3.6, 0.4, 0.5, 0xb9855a); lintel.position.set(0, 2.3, -7.6); b.add(lintel);
@@ -1183,8 +1213,10 @@ const B3D = (() => {
     park(b) {                                              // 公園河邊:河 + 樹 + 步道 + 長椅
       const river = new T.Mesh(new T.PlaneGeometry(26, 7), new T.MeshLambertMaterial({ color: 0x74b7d4 }));
       river.rotation.x = -Math.PI / 2; river.position.set(0, 0.02, -8.6); b.add(river);
-      const path = new T.Mesh(new T.PlaneGeometry(24, 1.4), new T.MeshLambertMaterial({ color: 0xd9cdb4 }));
-      path.rotation.x = -Math.PI / 2; path.position.set(0, 0.03, -4.6); b.add(path);
+      if (flatOK()) {                                      // 🗺 地圖地面開著就讓位(地圖上已經有步道了)
+        const path = new T.Mesh(new T.PlaneGeometry(24, 1.4), new T.MeshLambertMaterial({ color: 0xd9cdb4 }));
+        path.rotation.x = -Math.PI / 2; path.position.set(0, 0.03, -4.6); b.add(path);
+      }
       for (const [x, s] of [[-5.4, 1], [-2.9, 0.8], [3.2, 0.95], [6.1, 0.85]]) {
         const tr = box(0.34 * s, 1.9 * s, 0.34 * s, 0x8a6440); tr.position.set(x, 0.95 * s, -6.4); b.add(tr);
         // 樹冠壓到天花板以下(z=-6.4 的天花板是 y≈3.12;舊值冠頂 3.24 被削一刀)
@@ -1193,9 +1225,11 @@ const B3D = (() => {
       const bench = box(1.5, 0.14, 0.5, 0xa9743f); bench.position.set(1.1, 0.55, -4.0); b.add(bench);
     },
     street(b) {                                            // 街道:幾棟樓 + 斑馬線 + 路燈
-      const road = new T.Mesh(new T.PlaneGeometry(26, 4), new T.MeshLambertMaterial({ color: 0x9b9fa4 }));
-      road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -6.4); b.add(road);
-      for (let i = 0; i < 7; i++) { const z = box(0.5, 0.05, 3.4, 0xeef0f1); z.position.set(-3 + i, 0.05, -6.4); b.add(z); }
+      if (flatOK()) {                                      // 🗺 地圖地面開著就讓位(地圖上已經有馬路了)
+        const road = new T.Mesh(new T.PlaneGeometry(26, 4), new T.MeshLambertMaterial({ color: 0x9b9fa4 }));
+        road.rotation.x = -Math.PI / 2; road.position.set(0, 0.02, -6.4); b.add(road);
+        for (let i = 0; i < 7; i++) { const z = box(0.5, 0.05, 3.4, 0xeef0f1); z.position.set(-3 + i, 0.05, -6.4); b.add(z); }
+      }
       for (const [x, h, c] of [[-6.6, 4.4, 0xdcd6c8], [-3.4, 3.0, 0xcdd6dc], [3.6, 5.0, 0xd8ccc0], [7.2, 3.4, 0xd0d6cf]]) {
         const bl = box(2.6, h, 1.6, c); bl.position.set(x, h / 2, -9.2); b.add(bl);
       }
@@ -1203,6 +1237,208 @@ const B3D = (() => {
       const head = box(0.7, 0.18, 0.3, 0xe8e2c4); head.position.set(-1.9, 3.4, -4.8); b.add(head);
     },
   };
+  /* ══ 🗺 真實地圖鋪成 3D 地面(2026-07-30)══════════════════════════════════════
+     使用者原話是「跟皮克敏一樣」。★ 更正一個常見誤解:Pikmin Bloom 的「這就是我家附近」
+     不是照片,是**真實地圖鋪在腳下**(街道、河、公園的形狀)。所以正解是地圖不是照片,
+     而且我們本來就在用 OSM 圖磚(上面 L.tileLayer),等於零新增版權/隱私成本。
+     ★ 三個非功能要求(和背景積木同一套鐵則):
+       ① **絕不搶戲**:圖磚要降彩度、提亮、降對比 —— 孩子必須看清紅色攻擊預告線與綠區指針;
+       ② **邊緣要淡出成草地綠**,否則圓形地面外圍會出現一圈硬邊,看起來像貼紙;
+       ③ **離線與失敗要無感**:非同步載入、載不到就維持純草地,戰鬥照樣立刻開始。
+     ★ 尺度是刻意的:裁 384px @ z19 ≈ 104 公尺鋪在半徑 9 的圓上 → 人物相對地圖是「巨大」的,
+       這正是皮克敏的味道(不是寫實比例)。
+     ★ 北方朝畫面深處:地面轉 -π/2 後材質 v 軸指向 world -z,而 CanvasTexture 預設 flipY,
+       所以圖的上緣(北)落在 -z=遠方。不用再轉。
+     ★ CORS:tile.openstreetmap.org 回 `Access-Control-Allow-Origin: *`(查證過),
+       所以可以當 WebGL 材質用;一定要設 crossOrigin='anonymous',否則畫布會被汙染。
+     ══════════════════════════════════════════════════════════════════════════ */
+  /* CROP=480 是算過的上限:玩家在磚內的像素落在 [256,512],以它為中心裁 480
+     → 取用範圍 [16,752] 剛好還在 3×3 拼圖(768)裡面。再大就得抓 16~25 張磚,不值得。
+     480px @ z19 ≈ 130 公尺:第一版用 384(≈104m)截圖一看**路名太大**、像站在一張大海報上,
+     130m 才看得到「幾個街區」的感覺。 */
+  const TILE_Z = 19, CROP = 480, TEXPX = 512;
+  /* 🗺 地圖地面開著的時候,**地上的積木裝飾要讓位**:地圖本來就畫了馬路/跑道/步道,
+     再鋪一層積木馬路就是同一條路畫兩次(而且會蓋掉地圖)。只有「立起來的東西」
+     (樓、橋、樹、車頂棚)才留著 —— 那些地圖上看不到,是真的有加分。*/
+  const flatOK = () => !(save.mapGround && !save.noGeo);
+  function tilePos(lat, lng, z) {                            // Web Mercator:經緯度 → 圖磚座標+磚內比例
+    const n = 2 ** z, rad = lat * Math.PI / 180;
+    const x = (lng + 180) / 360 * n;
+    const y = (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n;
+    return { tx: Math.floor(x), ty: Math.floor(y), fx: x - Math.floor(x), fy: y - Math.floor(y) };
+  }
+  const loadImg = src => new Promise(res => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => res(im); im.onerror = () => res(null);
+    im.src = src;
+  });
+  function grassGround() {                                   // 退回純草地(關掉選項/查不到位置/離線)
+    if (!ground) return;
+    ground.material.map = null; ground.material.color.setHex(GRASS_HEX);
+    ground.material.needsUpdate = true;
+    $('mapCredit').style.display = 'none';
+  }
+  async function buildMapGround(lat, lng) {
+    if (!ground) return;
+    const p = tilePos(lat, lng, TILE_Z);
+    // 快取鍵取到「磚內四分之一格」≈ 17 公尺,同一帶來回走不會重抓
+    const key = `${p.tx}_${p.ty}_${Math.round(p.fx * 4)}_${Math.round(p.fy * 4)}`;
+    if (key === mapKey && mapTex) { applyMapTex(mapTex); return; }
+    const mos = document.createElement('canvas'); mos.width = mos.height = 768;
+    const mc = mos.getContext('2d');
+    mc.fillStyle = '#e8e0d4'; mc.fillRect(0, 0, 768, 768);   // 底色:圖磚沒到齊也不會是黑洞
+    const jobs = [];
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      jobs.push(loadImg(`https://tile.openstreetmap.org/${TILE_Z}/${p.tx + i}/${p.ty + j}.png`)
+        .then(im => { if (im) mc.drawImage(im, (i + 1) * 256, (j + 1) * 256, 256, 256); return !!im; }));
+    }
+    const got = (await Promise.all(jobs)).filter(Boolean).length;
+    if (!got) { grassGround(); return; }                     // 全軍覆沒(離線)→ 維持草地,不報錯
+    // 以玩家所在的那個點為中心裁一塊,再放大成材質
+    const px = 256 + p.fx * 256, py = 256 + p.fy * 256;
+    const cv = document.createElement('canvas'); cv.width = cv.height = TEXPX;
+    const c = cv.getContext('2d');
+    // ① 降彩度+提亮+降對比 = 退成氛圍,不跟紅線搶(filter 沒支援也只是少了這層,不會壞)
+    /* ⚠ 這三個數字調過一輪:第一版 saturate(42%)+brightness(1.12)+22% 綠罩 → 截圖一看**太淡**,
+       公園的綠、水的藍全洗掉,讀起來像米色紙不像地圖(反而失去「這是我家附近」的意義)。
+       現在留一點顏色,但仍明顯後退。★ 這一組數字是「不搶戲」與「認得出是地圖」的平衡點,
+       要改請一定重新截圖看紅色攻擊預告線還清不清楚。*/
+    c.filter = 'saturate(62%) brightness(1.05) contrast(90%)';
+    c.drawImage(mos, px - CROP / 2, py - CROP / 2, CROP, CROP, 0, 0, TEXPX, TEXPX);
+    c.filter = 'none';
+    // ② 再蓋一層淡綠讓它後退(0.22 → 0.12)
+    c.fillStyle = 'rgba(134,192,106,0.12)'; c.fillRect(0, 0, TEXPX, TEXPX);
+    // ③ 邊緣淡出成草地綠(圓形地面的外圈才不會有硬邊)
+    const g = c.createRadialGradient(TEXPX / 2, TEXPX / 2, TEXPX * 0.32, TEXPX / 2, TEXPX / 2, TEXPX * 0.5);
+    g.addColorStop(0, 'rgba(134,192,106,0)'); g.addColorStop(0.80, 'rgba(134,192,106,0.5)');
+    g.addColorStop(1, 'rgba(134,192,106,1)');
+    c.fillStyle = g; c.fillRect(0, 0, TEXPX, TEXPX);
+    if (mapTex) mapTex.dispose();                            // GPU 安全:換圖一定要 dispose 舊的
+    mapTex = new T.CanvasTexture(cv); mapKey = key;
+    applyMapTex(mapTex);
+  }
+  function applyMapTex(tex) {
+    ground.material.map = tex; ground.material.color.setHex(0xffffff);
+    ground.material.needsUpdate = true;
+    $('mapCredit').style.display = 'block';                  // OSM 圖磚一定要標示來源(授權要求)
+  }
+
+  /* ══ 📷 照片背景(可選;2026-07-30)══════════════════════════════════════════
+     ★ 四個坑先寫在這裡,以後任何人要開這個功能都必須先讀:
+       ① **版權**:網路上找的照片不能用。這是公開發佈的兒童 App → 只能用**你們自己拍的**
+          或有明確授權的。好消息:自己拍最乾淨,而且教會真的走得到。
+       ② **隱私與肖像**:拍捷運站/學校會拍到別人的臉、孩子、車牌。教會的兒童 App 裡
+          出現陌生人的臉,比版權更麻煩 → 拍的時候避開人,或事後模糊。
+       ③ **會搶戲(最需要小心的)**:照片比積木熱鬧十倍,而背景的鐵則是「絕不搶戲」。
+          所以一律**壓暗、降彩度、上緣淡出成天空色**,退成氛圍。
+       ④ **離線與檔案大小**:現在整個 App 很小、離線可玩。照片要壓到 100KB 以內、進 SW 快取。
+     ★ 怎麼放自己的照片:存成 `photos/<場景>.jpg`(例 photos/tamkang.jpg),程式會自己接上,
+       並且**自動把該場景的積木背景收掉**(有真照片就不需要積木橋了)。
+       ⚠ 檔案不存在 → **退回積木背景**。絕不拿假圖冒充「你們那座橋」騙孩子。
+     ★ 客廳模式的「🏞 背景」下拉有「📷 照片版示範」:用程式畫一張**帶照片雜訊的假圖**,
+       只為了讓使用者看見「照片會不會搶戲」,不是真的地標照片。
+     ★ 幾何:用一圈**開口朝內的圓柱**(半徑 9.4)當背景幕,剛好接在半徑 9 的地面外緣 →
+       不會像平面背板那樣露出「浮在空中的下緣」。material 用 BackSide 才看得到內壁。
+     ══════════════════════════════════════════════════════════════════════════ */
+  let photoMesh = null, photoTex = null;
+  let PHOTO_DEMO = false;                                   // 客廳示範用假圖(見 🏞 下拉)
+  const photoMiss = new Set();                              // 記住「這個場景沒放照片」,只試一次
+  const SKY_TOP = '#bfe6f7';
+  /* ★★ 照片幕的高度是算出來的,不能亂給(第一版就是這裡做錯)★★
+     第一版把幕做成高 7(y 從 -0.1 到 6.9),但**鏡頭在那個距離只看得到 y≈3.28 以下**
+     (鏡頭天花板公式見本檔上面 BACKDROPS 註解)→ 材質只有下半部進畫面,
+     結果橋、遠山、樓房全在看不到的上半部,螢幕上只剩一片水。截圖才發現。
+     現在:高 4.2、中心 y=2.0(y 從 -0.1 到 4.1)⇒ 幾乎整張照片都落在看得到的範圍。
+     ★ 幕只做背面 200°(看得到的橫向範圍約 180°),這樣同一張圖不必繞完 360°,橫向拉伸從 2 倍降到 1.25 倍。
+     ★ 畫布 1600×300 是配合幕的長寬比(弧長 ≈ 32.8 × 高 4.2 ≈ 7.8:1)選的,才不會把照片拉扁。*/
+  const PH_W = 1600, PH_H = 300, PH_HEIGHT = 4.2, PH_Y = 2.0, PH_ARC = 3.49;
+  function treatPhoto(draw) {                               // draw(ctx,w,h) → 回傳處理過的 canvas
+    const W = PH_W, H = PH_H, cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    draw(c, W, H);
+    // ③ 壓暗 + 降彩度(降彩度用「疊一層灰」近似,不依賴 ctx.filter 支援度)
+    c.globalCompositeOperation = 'saturation';
+    c.fillStyle = 'hsl(0,38%,50%)'; c.fillRect(0, 0, W, H);
+    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = 'rgba(20,26,34,0.30)'; c.fillRect(0, 0, W, H);
+    // 上緣淡出成天空色 → 和 3D 的天空無縫接上,不會出現一條硬邊
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, SKY_TOP); g.addColorStop(0.30, 'rgba(191,230,247,0)');
+    g.addColorStop(0.88, 'rgba(134,192,106,0)'); g.addColorStop(1, 'rgba(134,192,106,0.85)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    return cv;
+  }
+  /* 程式畫的「假照片」:刻意做出照片才有的雜訊與細碎細節(窗戶、水面條紋、顆粒),
+     因為要示範的就是「照片這種細節量會不會蓋掉紅線與指針」。這不是任何真實地點。*/
+  /* ★ 地平線一定要壓到很低(HZ=0.80H)。第一版放在 0.55H,截圖一看變成
+     **一面立起來的水牆**擋在草地和橋之間 —— 因為照片幕是垂直的牆,牆的下半部會出現在
+     「草地外緣的上方」。照片幕只該負責**地平線以上**(天空+主體),水面以下交給地面。
+     同一條規則適用於使用者自己的照片 → 下面 cover 裁切只取照片的**上面 72%**。*/
+  function fakePhotoDraw(c, W, H) {
+    const HZ = H * 0.80;
+    const sky = c.createLinearGradient(0, 0, 0, HZ);
+    sky.addColorStop(0, '#8fc6e8'); sky.addColorStop(1, '#e6d8bf');
+    c.fillStyle = sky; c.fillRect(0, 0, W, HZ);
+    c.fillStyle = '#7e8f9a';                                          // 遠山
+    for (let i = 0; i < 34; i++) {
+      const x = i * W / 34, h = 20 + Math.sin(i * 1.7) * 11 + Math.random() * 9;
+      c.fillRect(x, HZ - h, W / 34 + 2, h);
+    }
+    c.fillStyle = '#5d7f92'; c.fillRect(0, HZ, W, H - HZ);            // 只留一小條水面
+    c.strokeStyle = 'rgba(255,255,255,0.22)';                          // 水面反光條紋
+    for (let i = 0; i < 70; i++) {
+      const y = HZ + 2 + Math.random() * (H - HZ - 3), x = Math.random() * W;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + 8 + Math.random() * 34, y); c.stroke();
+    }
+    for (const bx of [90, 260, 1180, 1400]) {                          // 幾棟樓 + 細碎窗戶(照片的細節量)
+      const bw = 70 + Math.random() * 40, bh = 90 + Math.random() * 60;
+      c.fillStyle = '#8a8f92'; c.fillRect(bx, HZ - bh, bw, bh);
+      c.fillStyle = 'rgba(255,246,214,0.7)';
+      for (let r = 0; r < 10; r++) for (let q = 0; q < 5; q++)
+        if (Math.random() > 0.35) c.fillRect(bx + 8 + q * 13, HZ - bh + 9 + r * 8, 7, 4);
+    }
+    const dy = HZ - 18, tx = W * 0.46;                                 // 斜張橋剪影(單塔,拉索全往一側)
+    c.fillStyle = '#4a545c'; c.fillRect(W * 0.14, dy, W * 0.74, 8);
+    c.fillRect(tx, dy - 118, 9, 118);
+    c.strokeStyle = '#4a545c'; c.lineWidth = 1.8;
+    for (let i = 1; i <= 8; i++) {
+      c.beginPath(); c.moveTo(tx + 4, dy - 113); c.lineTo(tx + 4 + i * 62, dy); c.stroke();
+    }
+    c.fillStyle = 'rgba(255,255,255,0.05)';                            // 顆粒(照片才有的雜訊)
+    for (let i = 0; i < 3600; i++) c.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+  }
+  function clearPhoto() {
+    if (photoMesh) { scene.remove(photoMesh); photoMesh.geometry.dispose(); photoMesh.material.dispose(); photoMesh = null; }
+    if (photoTex) { photoTex.dispose(); photoTex = null; }
+  }
+  async function buildPhotoBackdrop(kind) {
+    clearPhoto();
+    let cv = null;
+    if (PHOTO_DEMO) cv = treatPhoto(fakePhotoDraw);
+    else {
+      /* 純 drop-in:把照片存成 photos/<場景>.jpg 就會自己接上,不用改任何程式。
+         代價是「沒放照片的場景」每次都會敲一次 404 → 用 photoMiss 記住,一個場景只試一次,
+         主控台不會被 404 洗版、也不會每場戰鬥多一個沒用的網路請求。*/
+      if (photoMiss.has(kind)) return false;
+      const im = await loadImg(`photos/${kind}.jpg`);        // 沒有這個檔就 null → 維持積木
+      if (!im) { photoMiss.add(kind); return false; }
+      /* 只取照片的**上面 72%**(天空+主體),丟掉最下面的前景/水面 ——
+         理由同 fakePhotoDraw 的註解:照片幕是垂直的牆,把前景放進去會變成「立起來的水牆」。
+         橫向直接鋪滿(背景幕本來就是繞著弧的,拉伸不明顯)。*/
+      cv = treatPhoto((c, W, H) => c.drawImage(im, 0, 0, im.width, im.height * 0.72, 0, 0, W, H));
+    }
+    photoTex = new T.CanvasTexture(cv);
+    /* 只做背面 200° 的一段圓柱:theta=0 在 +z(靠鏡頭那側)、theta=π 在 -z(遠處),
+       所以要讓弧「以 π 為中心」→ thetaStart = π - PH_ARC/2。 */
+    photoMesh = new T.Mesh(
+      new T.CylinderGeometry(9.4, 9.4, PH_HEIGHT, 40, 1, true, Math.PI - PH_ARC / 2, PH_ARC),
+      new T.MeshBasicMaterial({ map: photoTex, side: T.BackSide }));
+    photoMesh.position.y = PH_Y; scene.add(photoMesh);
+    clearBackdrop();                                          // 有照片就不要積木背景(同一個東西畫兩次)
+    return true;
+  }
+
   function buildBackdrop(kind) {
     if (!backdrop) return;
     clearBackdrop();
@@ -1233,7 +1469,7 @@ const B3D = (() => {
       cam = new T.PerspectiveCamera(50, 1, 0.1, 60);
       scene.add(new T.HemisphereLight(0xffffff, 0x8fae7a, 1.05));
       const dl = new T.DirectionalLight(0xffffff, 0.7); dl.position.set(3, 6, 4); scene.add(dl);
-      const ground = new T.Mesh(new T.CircleGeometry(9, 32), new T.MeshLambertMaterial({ color: 0x86c06a }));
+      ground = new T.Mesh(new T.CircleGeometry(9, 32), new T.MeshLambertMaterial({ color: GRASS_HEX }));
       ground.rotation.x = -Math.PI / 2; scene.add(ground);
       // 背景景物全部掛在這個群組底下 → 換地點時整組換掉,不動舞台上的人與獸
       backdrop = new T.Group(); scene.add(backdrop);
@@ -1255,6 +1491,16 @@ const B3D = (() => {
     if (beast) { scene.remove(beast); beast = null; }
     if (kind) { beast = makeBeast(kind); scene.add(beast); }
     buildBackdrop(PLACE.scene);            // 🏞 這一場的背景=你現在站的地方(查不到就草地)
+    /* 🗺 腳下的地面:老師可選「草地」或「真實地圖」。
+       ★ 刻意**不 await** —— 圖磚是網路來的,等它就等於「開打卡住」。先用草地開場,
+         圖載好了再無縫換上去(載不到就一直是草地,孩子完全不會知道出過事)。
+       ★ 尊重 🔒「不要連外查地點」:勾了就完全不抓圖磚(雖然地圖畫面本來就會取圖,
+         但那個勾勾對家長的承諾是「不為了背景多連外」,所以這裡一律照最保守的解讀)。*/
+    if (save.mapGround && !save.noGeo && pos) buildMapGround(pos.lat, pos.lng);
+    else grassGround();
+    /* 📷 照片背景:同樣**不 await**。找得到 photos/<場景>.jpg 就換上(並收掉積木背景),
+       找不到就什麼都不做 → 積木背景照常。示範模式用程式畫的假圖。*/
+    buildPhotoBackdrop(PLACE.scene);
     reset(!!kind);
     host.style.display = 'block'; $('b3dHint').style.display = 'none';
     // 3D 開著就把大 emoji 收起來(手機版面有限;還原要寫**明確值** inline-block,
@@ -1366,6 +1612,7 @@ const B3D = (() => {
     get on() { return ready && !failed; },
     busy() { return ready && lock > 0; },
     mount, resize,
+    photoDemo(on) { PHOTO_DEMO = !!on; },        // 📷 客廳示範用假圖的開關(見 buildPhotoBackdrop)
     unmount() { host && (host.style.display = 'none'); },
     /* 🦯 甩杖擊退:右臂+杖揮下 → 命中白光環 → 獸後仰退開(街霸式擊退) */
     strike(hit) {
@@ -1504,11 +1751,14 @@ const B3D = (() => {
       CINEMA.off();                              // 離開戰鬥一定要退出劇場模式,否則下一關版面是壞的
       $('sheepBig').style.display = 'inline-block';
       $('b3dBar').style.display = 'none';
+      $('mapCredit').style.display = 'none';
       if (host) host.style.display = 'none';
       if (!scene) return;
       scene.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); });
+      if (mapTex) { mapTex.dispose(); mapTex = null; mapKey = ''; }   // 🗺 地圖材質也要放掉,不然離開戰鬥還占著 GPU
+      clearPhoto();                                                   // 📷 照片幕同理
       ren && ren.dispose(); ren && ren.domElement.remove();
-      ren = scene = cam = beast = shep = sheep = rope = flash = null; ready = false;
+      ren = scene = cam = beast = shep = sheep = rope = flash = ground = null; ready = false;
     },
   };
   return A;
