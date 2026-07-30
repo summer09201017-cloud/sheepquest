@@ -50,7 +50,16 @@
 //                 兩首原創 A 小調曲(walk 牧歌 / fight 緊張),六個音效
 //                 (杖擊命中/揮空/被撲/閃過/獸被趕走/帶回家);獸的音效刻意做悶不做咆哮(獸不可恐怖)。
 //                 ★ 音樂與朗讀是**兩個獨立開關**(🎵 音樂 / 🔊 朗讀)——教室裡常只想關音樂。
-const CACHE = 'sheepquest-v11';
+// v12(2026-07-31):📍 **修「在外面按 GPS 開始找羊一定拿不到定位」的真 bug**(使用者實測回報)——
+//                 根因不是權限,是舊碼 `timeout: 10000` 太短:enableHighAccuracy + maximumAge 預設 0
+//                 = 強迫手機重開 GPS 取全新 fix,戶外冷啟動典型 15~45 秒 ⇒ 10 秒必定 TIMEOUT(code 3);
+//                 而舊碼把 code 1/2/3 三種錯誤**全部**寫成「要允許權限」= 把人導向錯的解法。
+//                 ①主力改 watchPosition(會一直重試,刻意不給 timeout)②等待期間畫面顯示「⏳ 正在定位…N 秒」
+//                 + 15 秒教「走到看得到天空的地方」③錯誤按 code 分辨,權限拒絕才講權限(並附 iOS/Android
+//                 逐步開法、提醒主畫面 PWA 是另一份權限)④快取位置(≤±200m)搶開場,GPS 一到自動校正
+//                 ⑤HUD 標「📍 ±Nm」精度——抓羊要 25m 內,不講就變成「走到了卻抓不到=遊戲壞了」
+//                 ⑥「📍 重新定位」鈕在 watch 斷掉時會重啟定位(以前只能整頁重載)。
+const CACHE = 'sheepquest-v12';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',

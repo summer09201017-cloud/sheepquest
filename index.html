@@ -82,6 +82,9 @@
 
 <div class="top">
   <span class="chip">🐑 <span id="count">0</span>/100</span>
+  <!-- 📍 0731:把「定位精度」講出來。抓羊要 25 公尺內,±200m 的粗定位會讓人
+       「走到了卻抓不到」,以為遊戲壞了 —— 那不是 bug,是 GPS 還沒收斂。 -->
+  <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 25 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
   <span class="grow"></span>
   <button class="btn" id="ttsBtn" title="把經文唸出來(給還不識字的孩子);按一下可以關掉">🔊 朗讀</button>
   <button class="btn" id="bgmBtn" title="背景音樂與音效(打到獸、被獸撞到…);按一下可以關掉。和「朗讀」是分開的兩個開關,教室裡常只想關音樂">🎵 音樂</button>
@@ -119,6 +122,10 @@
     <button class="btn primary" id="startBtn" disabled>📍 用 GPS 開始找羊</button>
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
+  <!-- 📍 定位狀態(0731 修 bug 新增):舊版按下去只有「成功」或「跳一行失敗 toast」兩種結局,
+       中間那 10~45 秒的等待**完全沒畫面** → 使用者以為壞了就走了。
+       ★ 顯示一律寫明確的 display 值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑)。-->
+  <div id="geoStatus" style="display:none;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.10);font-size:15px;line-height:1.75"></div>
   <!-- ⚠ 0730 這段文案必須跟著功能改成實話:加了「背景跟著地點變」之後,會送出粗略位置去查地名。
        原本寫「你的位置絕不上傳」,不改就是對家長說謊。★ 改文案與加開關是這個功能的必要條件,不是選配。-->
   <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
@@ -520,6 +527,8 @@ function distM(a, b) {                                   // haversine
 
 /* ── 地圖 ── */
 let map = null, youMarker = null, sheepMarkers = [], pos = null, demo = false, watching = null;
+/* 📍 0731 定位修 bug 用的狀態(說明見下面 startGPS 的整段註解) */
+let geoTick = null, geoT0 = 0, gotFix = false, lastAcc = null, geoNote = '';
 function initMap() {
   map = L.map('map', { zoomControl: false }).setView([pos.lat, pos.lng], 17);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -552,8 +561,16 @@ function refreshSheep() {
   $('count').textContent = flockCount();
 }
 let _placeCell = null;
-function onPos(lat, lng) {
+function onPos(lat, lng, acc) {
   pos = { lat, lng };
+  /* 📍 0731:精度要讓玩家看得到。GPS 剛開機時 accuracy 常是 ±100~2000m,
+     那時「走到羊身邊」根本不會成立(要 25m 內)——沒講出來就變成「遊戲壞了」的客訴。 */
+  if (acc != null && isFinite(acc)) {
+    lastAcc = acc;
+    $('accVal').textContent = Math.round(acc);
+    $('accChip').style.display = 'inline-block';
+    $('accChip').style.color = acc > 40 ? '#ffd479' : '';
+  }
   if (!map) initMap();
   youMarker.setLatLng([lat, lng]);
   refreshSheep();
@@ -569,17 +586,102 @@ function toast(t, ms) { $('toast').textContent = t; $('toast').style.display = '
 
 /* ── 開場 ── */
 $('agree').onchange = e => { $('startBtn').disabled = $('demoBtn').disabled = !e.target.checked; };
-$('startBtn').onclick = () => {
-  if (!navigator.geolocation) { toast('這支手機不支援定位,先用測試模式吧'); return; }
-  navigator.geolocation.getCurrentPosition(p => {
-    $('introPanel').classList.remove('on');
-    onPos(p.coords.latitude, p.coords.longitude);
-    watching = navigator.geolocation.watchPosition(q => onPos(q.coords.latitude, q.coords.longitude),
-      () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
-    SFX.startMusic('walk');   // 🎵 出發就有平靜的牧歌(這是使用者手勢裡,所以一定播得出來)
-    toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
-  }, () => toast('拿不到定位(要允許權限)——或改用 🧪 測試模式'), { enableHighAccuracy: true, timeout: 10000 });
-};
+/* ═══ 📍 定位(2026-07-31 修「在外面按 GPS 一定拿不到定位」的真 bug)═══
+   使用者實測:在戶外按「📍 用 GPS 開始找羊」每次都跳「拿不到定位(要允許權限)」→ 根本玩不了。
+   ★ 根因**不是權限**,是舊碼 `timeout: 10000` 太短:
+     `enableHighAccuracy:true` 且 `maximumAge` 沒給(預設 0)= 強迫手機**重新開 GPS 取一筆全新 fix**;
+     iOS/Android 冷啟動(剛出門、樓房之間、第一次在這個站授權)典型 15~45 秒才有第一筆
+     ⇒ 10 秒必定 TIMEOUT(code 3)。而舊碼把 code 1/2/3 **三種錯誤全部**寫成「要允許權限」,
+     把使用者導向錯的解法(去設定裡看,權限明明是開的)——所以「看起來像權限 bug,其實是等太短」。
+   ★ 修法五件,缺一件都還是會卡:
+     ① 主力換 `watchPosition`:它會**一直重試**直到拿到 fix;`getCurrentPosition` 一次超時就死。
+        且**刻意不給 timeout** —— 要等多久由下面的計時器在畫面上講,不是叫瀏覽器放棄。
+     ② 等待期間要有畫面:「⏳ 正在定位…N 秒」+ 15 秒後教「走到看得到天空的地方」。
+     ③ 錯誤按 code 分辨,各給對的下一步(1 權限 / 2 沒訊號 / 3 還在等)。
+     ④ 快取位置搶開場:另發一支低精度 + `maximumAge` 5 分鐘的 getCurrentPosition,
+        有近期位置就先讓遊戲開起來(但 ±200m 以上不採用,免得羊亂跳),高精度 fix 一到自動接手。
+     ⑤ 精度講出來(見 onPos 的 accChip):抓羊要 25m 內,不講就變成「走到了卻抓不到=遊戲壞了」。
+   ⚠ 開場從 click handler 內搬到 callback 裡了 ⇒ 音樂**不再是「使用者手勢內」**。
+     靠檔尾那個一次性 `pointerdown` unlock(按這顆鈕就解鎖了),這裡再明確補一次 SFX.unlock() 保險。
+   ⚠ `beginPlay` 用 gotFix 當鎖:快取位置與 GPS fix 會**兩邊都回來**,開場只能跑一次。 */
+function geoSay(html) { const el = $('geoStatus'); el.innerHTML = html; el.style.display = 'block'; }
+function stopGeoTick() { if (geoTick) { clearInterval(geoTick); geoTick = null; } }
+
+function beginPlay(lat, lng, acc) {
+  if (gotFix) { onPos(lat, lng, acc); return; }      // 第二筆以後只更新位置,不重複開場
+  gotFix = true;
+  stopGeoTick();
+  $('geoStatus').style.display = 'none';
+  $('introPanel').classList.remove('on');
+  onPos(lat, lng, acc);
+  SFX.startMusic('walk');                            // 🎵 出發就有平靜的牧歌
+  toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
+}
+
+function geoErrHtml(code) {
+  if (code === 1) return '🚫 <b>定位權限被拒絕了</b>(這才是真的權限問題)。<br>' +
+    '· iPhone:設定 → Safari → 位置 → 選「詢問」;再確認 設定 → 隱私權與安全性 → 定位服務 → 有開。<br>' +
+    '· Android Chrome:網址列左邊的 🔒 → 權限 → 位置 → 允許。<br>' +
+    '· <b>從主畫面圖示開的</b>要再授權一次(和瀏覽器裡開的是兩份權限)。<br>' +
+    '改好回來按一次「📍 用 GPS 開始找羊」就好。';
+  if (code === 2) return '📡 <b>手機收不到定位訊號</b>(權限是好的)。走到看得到天空的地方——' +
+    '室內、地下室、貼隔熱紙的車上都收不到;也確認沒開飛航模式。<b>還在繼續試,不用重按。</b>';
+  return '⏳ 還在等 GPS 的第一筆定位,<b>不用重按</b>,繼續等就好。';
+}
+
+function startGPS() {
+  if (!navigator.geolocation) { geoSay('這支手機的瀏覽器不支援定位,先用 🧪 客廳測試模式吧。'); return; }
+  /* 🔒 https 之外(http、file://)瀏覽器一律不給定位 —— 這種情況舊訊息也會誤報成「權限」。 */
+  if (!window.isSecureContext) { geoSay('🔒 這個網址不是 https,瀏覽器規定<b>不給定位</b>。請改用 https 的網址,或先用 🧪 客廳測試模式。'); return; }
+  SFX.unlock();                                       // 在使用者手勢裡解鎖音訊(開場音樂才播得出來)
+  if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+  gotFix = false; geoNote = ''; geoT0 = Date.now();
+
+  const tick = () => {
+    const s = Math.round((Date.now() - geoT0) / 1000);
+    let tip = '第一次在戶外用,手機要重新開 GPS,通常 5~30 秒。';
+    if (s >= 15) tip = '👉 走到<b>看得到天空</b>的地方(騎樓、室內、車內都收不到)。';
+    if (s >= 40) tip = '還是拿不到?先按 🧪 客廳測試模式一樣能玩;走到空曠處再回來按這顆鈕。';
+    geoSay(`⏳ <b>正在定位…${s} 秒</b>(不用重按)<br>${tip}` + (geoNote ? `<br>${geoNote}` : ''));
+  };
+  stopGeoTick(); tick(); geoTick = setInterval(tick, 1000);
+
+  /* ① 主力:watchPosition,沒有 timeout,拿到第一筆就開場 */
+  watching = navigator.geolocation.watchPosition(
+    q => beginPlay(q.coords.latitude, q.coords.longitude, q.coords.accuracy),
+    err => {
+      if (gotFix) return;                              // 已經在玩了,半路掉訊號不要打斷
+      if (err && err.code === 1) {                     // 權限拒絕:不會自己好,停下來給指引
+        stopGeoTick();
+        if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+        geoSay(geoErrHtml(1));
+        return;
+      }
+      geoNote = geoErrHtml(err && err.code);           // 2/3:訊息交給 tick 一起畫,watch 繼續試
+    },
+    { enableHighAccuracy: true, maximumAge: 0 });
+
+  /* ② 搶開場:手機若記得 5 分鐘內的位置就先玩起來,GPS 收斂後自動校正。
+        ★ ±200m 以上不採用 —— 那種精度開場,羊會在你面前整批搬家,比多等幾秒更難懂。 */
+  navigator.geolocation.getCurrentPosition(
+    p => { if (!gotFix && p.coords.accuracy <= 200) {
+             beginPlay(p.coords.latitude, p.coords.longitude, p.coords.accuracy);
+             toast('先用手機記得的位置開場,GPS 精確之後會自動校正 📍', 3200);
+           } },
+    () => {},                                          // 沒有快取位置就算了,等 watch
+    { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 });
+
+  /* ③ 權限早就被永久拒絕時,不必等 45 秒才知道(Safari 16.4+/Chrome 都支援) */
+  try {
+    navigator.permissions && navigator.permissions.query({ name: 'geolocation' })
+      .then(st => { if (st.state === 'denied' && !gotFix) {
+        stopGeoTick();
+        if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+        geoSay(geoErrHtml(1));
+      } }).catch(() => {});
+  } catch (e) { /* 不支援 Permissions API 就算了,上面的 code 1 分支照樣會接到 */ }
+}
+$('startBtn').onclick = startGPS;
 $('demoBtn').onclick = () => {
   demo = true;
   SFX.startMusic('walk');   // 🎵 同上:測試模式也要有音樂
@@ -619,7 +721,12 @@ $('walkBeastBtn').onclick = () => {
   if (map) map.setView([pos.lat, pos.lng], 18);
   toast(`⚔️ 已經站到${demoTarget.beast.n}旁邊(${demoTarget.name})——按下面那條「⚔️ 從${demoTarget.beast.n}口中救回…」就開始打!`, 5000);
 };
-$('locBtn').onclick = () => { if (map && pos) map.setView([pos.lat, pos.lng], 17); };
+$('locBtn').onclick = () => {
+  if (map && pos) map.setView([pos.lat, pos.lng], 17);
+  /* 🔁 0731:半路進了室內、GPS 斷了(watch 被瀏覽器收掉)時,這顆鈕要能**重新啟動定位**,
+     不然使用者唯一的辦法是整頁重載,連羊圈畫面都要重走一次。 */
+  if (!demo && watching === null) { toast('📍 重新開始定位…', 2000); startGPS(); }
+};
 
 /* ── 抓捕:綠區時機套索(溫柔規則:永不失敗,miss 只是小羊跳開再試) ──
    ⚔️ 0729 新增第一階段:羊被野獸叼著時要先把獸趕走(撒上 17:34-35)。
