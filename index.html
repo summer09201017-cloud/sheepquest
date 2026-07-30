@@ -811,13 +811,38 @@ const B3D = (() => {
     const mouth = box(0.10, 0.02, 0.03, 0x8a4b3a); mouth.position.set(0, -0.09, 0.17); head.add(mouth);
     const neck = cyl(0.07, 0.07, 0.12, skin); neck.position.y = 1.88; g.add(neck);
     g.add(head);
-    // 牧人的杖(握在右手)
-    const staff = cyl(0.028, 0.028, 1.25, staffC); staff.position.set(0, -0.55, 0); staff.rotation.x = 0.15;
-    // 牧羊杖的彎鉤在**上端**(0729 截圖驗收抓到:原本放下端,揮杖時鉤子被甩到天上)
+    /* 牧人的杖(握在右手)。
+       🔴 **0730 重新裝向**:原本是 `長 1.25、中心掛在肘下方 0.55` = 整支**朝下垂**、彎鉤剛好在手邊
+          → 揮起來只能是「橫掃」,做不出使用者要的「手高舉、杖頭由上往下砸」
+            (使用者 0730 點名過一次,但上一輪只做在圓萌版身上,寫實版沒動)。
+          改成**朝上、高過頭頂**,和圓萌版同一個道理。
+       ★ 算過才不會插進地裡也不會浮空(A 版的骨架和圓萌版完全不同,**絕不可照抄它的數字**):
+          shJ 在 y=1.72、elJ 在 y=1.38(shJ 下方 0.34)、頭頂約 2.35。
+          杖長 2.2、中心掛在 elJ **上方** 0.49 → 中心 y≈1.87、下端 0.77(髖際,不插地)、
+          上端 2.97(**高過頭頂 0.62**)⇒ 由上往下砸的大弧看得清楚。
+       ★ **杖頭要在 elJ 上方 1.59**(=中心偏移 + 半長)這個數字才是關鍵,長度可以往回收:
+          第一版 2.4 長(偏移 0.39)也是 1.59,但**手下方多出 0.81 的桿子**,
+          揮到一半那截會**橫過牧人自己的臉**(截圖驗收看到的)。改成 2.2 長 / 偏移 0.49,
+          杖頭位置一模一樣(reach 不變)、手下方只剩 0.61 ⇒ 擋臉明顯減輕。
+       ★★ **杖長是量出來的下限,不是美感選的**(0730 verify-strike.mjs 實測):
+          第一版做 1.9 長 → 揮杖半徑(肩膀到杖頭)只有 0.83,
+          但肩膀 1.72 要降到獸頭 0.90 得掉 **0.82** ⇒ 只有把手臂轉到幾乎正下方才夠低,
+          而那個角度的**前伸距離等於 0** ⇒ 幾何上就是「不可能同時夠低又夠遠」,實測卡在 reach 0.59。
+          加長到 2.4(半徑 1.25)才同時做到 y 對得上、又伸得出去。
+          ⇒ 這也是為什麼圓萌版的杖是 2.2:它不是為了可愛,是**大弧需要的長度**。
+       ★ 彎鉤仍在**上端**(0729 截圖驗收抓到的:放下端會在揮杖時被甩到天上)。*/
+    const staff = cyl(0.028, 0.028, 2.2, staffC); staff.position.set(0, 0.49, 0); staff.rotation.x = 0.15;
     const hook = new T.Mesh(new T.TorusGeometry(0.1, 0.028, 6, 12), new T.MeshLambertMaterial({ color: staffC }));
-    hook.position.set(0, 0.62, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
+    hook.position.set(0, 1.05, 0); hook.rotation.y = Math.PI / 2; staff.add(hook);
     arms[1].elJ.add(staff);
-    g.userData = { legs, arms, head, mouth, staff };
+    /* armUp/armUpZ/armDown/armDownZ = 甩杖的「高舉 → 由上往下砸」角度。
+       ★ 0730 起 **A 版也有**(原本只有圓萌版有,strike() 靠 `U.armUp !== undefined` 分流,
+         所以寫實版一直走 else 的橫揮)。角度沿用圓萌版那一組:兩版的杖頭都在手臂 local **+y**
+         (=肩膀的另一側),所以同一組角度在兩邊都會產生同樣的「蹺蹺板」大弧。
+       ★ staffHead 交出去給 probe() 量「杖頭到獸頭」的距離(肉眼猜不出來打到沒有)。*/
+    g.userData = { legs, arms, head, mouth, staff, staffHead: hook,
+      // armDown 2.25 是 A 版的最佳角(量出來的):再往下轉,杖頭的 z 會開始退回去、反而離獸更遠。
+      armUp: -0.75, armUpZ: -0.45, armDown: 2.25, armDownZ: 0.55 };
     return g;
   }
 
@@ -883,10 +908,14 @@ const B3D = (() => {
     arms[1].elJ.add(staff);
 
     /* eyes/blinkT 交出去 → 待機迴圈就會讓他跟動物一樣眨眼+Q 彈呼吸(週期刻意錯開,不同步眨)。
-       armUp/armUpZ/armDown = 這一版專屬的甩杖角度(高舉 → 由上往下砸);
-       **只有這三個值存在時 strike() 才走「高舉砸下」那條路** → A 版完全不受影響(它 07-29 驗過了)。*/
-    g.userData = { legs, arms, head, mouth: null, staff, eyes, blinkT: 1.1,
-      armUp: -0.75, armUpZ: -0.45, armDown: 2.1, armDownZ: 0.55 };
+       armUp/armUpZ/armDown = 甩杖角度(高舉 → 由上往下砸)。
+       ⚠ **0730 更新:這一組不再是圓萌版專屬** —— 使用者回報「寫實牧人沒有手舉高由上往下砸」,
+         所以 A 版(makeShepherdBlock)也加了同一組值、也把杖重新裝成朝上。
+         舊註解寫「只有這一版有 → A 版完全不受影響」= 已過時,別再照那句推論。*/
+    g.userData = { legs, arms, head, mouth: null, staff, staffHead: hook, eyes, blinkT: 1.1,
+      /* armDown 2.1→2.38(0730 量測):2.1 時杖頭停在 y≈1.21,而獸頭在 y≈0.90 ⇒ 高了 0.31,
+         看起來像從獸頭上方掃過去。多轉一點讓杖頭真的落到獸頭高度。*/
+      armUp: -0.75, armUpZ: -0.45, armDown: 2.38, armDownZ: 0.55, stepIn: 0.55 };
     return g;
   }
 
@@ -1524,7 +1553,19 @@ const B3D = (() => {
     shep.userData.arms[1].shJ.rotation.set(-0.25, 0, -0.15);
     shep.userData.arms[0].shJ.rotation.set(-0.1, 0, 0.12);
     if (beast) {
-      beast.position.set(1.45, 0, -0.4);
+      /* 🔴 站位小縮(0730,使用者:「獸的攻擊能更靠近牧人一點嗎?看起來牧人是對空氣攻擊」)。
+         原本 (1.45, -0.4) → 牧人在 (-1.25, 0.55),間距 2.86;杖頭砸到底離獸頭還有 1.64
+         (獸頭半徑才 ~0.48)= 差三個頭以上。★ 量出來才發現**主要差在 z 不是 x**
+           (牧人 z=+0.55、獸 z=-0.4;杖是往牧人的正面掃過去,z 幾乎不動)。
+         所以 x 只收一點、**z 拉近比較多**。
+         ★★ 這組數字是**量出來的,不是算出來的** —— 我第一版用幾何推算得 0.46,實測卻是 0.79。
+            實測 z 才是主兇:杖是往牧人正面掃出去的,杖頭最後落在 z≈0.9~1.1,
+            而獸頭原本在 z=0.37 ⇒ 光是 z 就差 0.5~0.7。把獸的 z 拉到和牧人差不多高度就對上了。
+            ⇒ 以後動站位/杖長/揮杖角度,一律先跑 `node scripts/verify-strike.mjs` 看 reach,別用眼睛猜。
+         待機間距仍只小縮(2.86→2.55,紅線閃避的空間感不動)。
+         ⚠ 真正的接觸靠 strike() 裡「牧人踏進 + 獸迎上來」那段位移,不是靠站位;
+           站位若再往前縮就會壓到閃避空間(這是使用者選的方向)。*/
+      beast.position.set(1.30, 0, 0.62);
       /* ★★ 獸朝向鐵則(beast-boss-kit:頭永遠朝螢幕側,任何狀態不可露屁股)——
          模型的頭在 local +x;rotation.y=θ 會把 +x 映到 (cosθ, -sinθ)。
          要頭朝「玩家(左,-x)且偏鏡頭(+z)」→ cosθ≈-0.85、sinθ≈-0.5 → θ≈-π+0.52。
@@ -1532,8 +1573,10 @@ const B3D = (() => {
       beast.rotation.set(0, -Math.PI + 0.52, 0);
       beast.visible = true;
       beast.traverse(o => { if (o.material) { o.material.transparent = false; o.material.opacity = 1; } });
-      // 羊「被叼住」=擺在獸頭的正前方(獸頭朝左前,所以羊在獸的左前方)
-      sheep.position.set(0.62, 0, 0.28); sheep.rotation.y = SHEEP_FACE;
+      /* 羊「被叼住」=擺在獸頭的正前方(獸頭朝左前,所以羊在獸的左前方)。
+         ★ 獸站位一動,這裡**一定要跟著動**,否則羊會離開獸嘴、變成「叼在空氣裡」。
+           算法=沿用原本「羊相對獸頭 (-0.35, +0.41)」的偏移,套到新的獸頭位置。*/
+      sheep.position.set(0.56, 0, 1.04); sheep.rotation.y = SHEEP_FACE;
     } else {
       sheep.position.set(0.5, 0, 0.35); sheep.rotation.y = SHEEP_FACE;
     }
@@ -1625,7 +1668,7 @@ const B3D = (() => {
     /* 🦯 甩杖擊退:右臂+杖揮下 → 命中白光環 → 獸後仰退開(街霸式擊退) */
     strike(hit) {
       if (!A.on) return;
-      const U = shep.userData, sh = U.arms[1].shJ, x0 = beast ? beast.position.x : 0;
+      const U = shep.userData, sh = U.arms[1].shJ;
       const R0 = -0.25, RZ = -0.15;                    // 待機角(和 reset() 同一組數字)
       /* 🧑‍🌾 B|圓萌牧人的甩杖(使用者 0730:「拿杖的手要高舉,將杖頭由上往下攻擊獸」)──
          ★ 先講這個骨架的事實,不然以後會有人把角度改回去:杖頭掛在手臂 local **+y**
@@ -1638,31 +1681,72 @@ const B3D = (() => {
              ② 後 0.30 秒 —— x 掃到 +2.1(用 k² 加速才有重量感)、z 抬到 +0.55
                 → 杖頭走「上 → 前 → 下」砸到獸前面,**手同時往上往外抬高**(蹺蹺板效應)。
            角度都算過:砸到底時杖頭在世界 y≈0.25(不插地)、杖尾在 y≈1.34、手抬到 y≈1.0 以上。
-         ★ 命中白光/獸被打退要**等杖砸到底才出現**(land=0.52 秒),不然會出現「還沒揮到就見血」。
-         ★ A|寫實版沒有 armUp 這組值 → 走下面 else 的原本動畫,07-29 驗過的手感一點都不動。*/
-      const isB = U.armUp !== undefined, land = isB ? 0.44 : 0;
-      if (isB) {
+         ★ 命中白光/獸被打退要**等杖砸到底才出現**(land=0.44 秒),不然會出現「還沒揮到就見血」。
+         ⚠ 0730 起 **A|寫實版也有 armUp 這組值**(使用者回報寫實牧人沒有這個動作)→ 兩版走同一條路;
+           下面的 else 只留作保險(萬一有人拿掉那組值,至少還揮得動)。
+
+         🤝 **出手瞬間互相靠近**(0730 使用者:「看起來牧人是對空氣攻擊,沒有真的打到獸」)。
+            實測根因:待機間距 2.86,但杖頭砸到底只能到離獸頭 **1.64** 的地方(獸頭半徑才 ~0.48)
+            ⇒ 差三個頭以上。高度其實是對的(杖頭 y≈1.30、獸頭頂 ≈1.42),差的**全是水平距離**。
+            ★ 為什麼不直接把獸永久擺近:紅線閃避要有空間感,站位一縮整套節奏都要重調
+              (使用者也選了這個方向)。所以**待機只小縮**,真正的接觸靠這段位移:
+              牧人往前踏一步 + 獸同時前傾迎上來,在杖砸到底那一刻兩者最近。
+            ★ 位移**做完一定還原**到 reset() 的站位,否則連打幾下獸會被一路推出畫面。*/
+      const hasSmash = U.armUp !== undefined, land = hasSmash ? 0.44 : 0;
+      const sx0 = shep.position.x, bx0 = beast ? beast.position.x : 0;
+      const toBeast = Math.sign(bx0 - sx0) || 1;
+      /* 踏進的距離**每版不一樣**(放在 userData,別寫死一個數字):
+         · A|寫實牧人 0.86 —— 個子高、手臂相對短,不踏這麼多就伸不到(實測 0.66 時 reach 卡在 0.59)。
+         · B|圓萌牧人 0.55 —— 身體是圓團(半徑大)又配 2.2 長杖,踏 0.86 會**和獸互相穿透**
+           (截圖驗收看到的:獸的頭直接畫進牧人胸口)。 */
+      const STEP = U.stepIn ?? 0.86, LUNGE = 0.5;     // 牧人踏進 / 獸迎上來
+      if (hasSmash) {
         const UP = U.armUp, UZ = U.armUpZ, DN = U.armDown, DZ = U.armDownZ, AD = 0.56;
         play(AD, (p) => {
           const t = p * AD;
-          if (t < 0.14) { const k = ease(t / 0.14); sh.rotation.x = R0 + (UP - R0) * k; sh.rotation.z = RZ + (UZ - RZ) * k; }
-          else { const k = Math.min(1, (t - 0.14) / 0.30); sh.rotation.x = UP + (DN - UP) * (k * k); sh.rotation.z = UZ + (DZ - UZ) * k; }
-        }, () => { sh.rotation.set(R0, 0, RZ); });
+          if (t < 0.14) {                             // 蓄力:小幅後拉,腳跟著微退半步
+            const k = ease(t / 0.14);
+            sh.rotation.x = R0 + (UP - R0) * k; sh.rotation.z = RZ + (UZ - RZ) * k;
+            shep.position.x = sx0 - toBeast * 0.10 * k;
+          } else {                                    // 砸下:牧人踏進、獸迎上來,砸到底時最近
+            const k = Math.min(1, (t - 0.14) / 0.30), ek = ease(k);
+            sh.rotation.x = UP + (DN - UP) * (k * k); sh.rotation.z = UZ + (DZ - UZ) * k;
+            shep.position.x = sx0 - toBeast * 0.10 * (1 - ek) + toBeast * STEP * ek;
+            if (beast) {
+              beast.position.x = bx0 - toBeast * LUNGE * ek;
+              beast.userData.headJ.rotation.z = -0.22 * ek;   // 獸前傾迎上來(頭仍朝螢幕側,不露屁股)
+            }
+          }
+        }, () => {
+          sh.rotation.set(R0, 0, RZ); shep.position.x = sx0;
+          if (beast) { beast.position.x = bx0; beast.userData.headJ.rotation.z = 0; }
+        });
       } else {
         play(0.42, (p, e) => { sh.rotation.x = R0 - Math.sin(p * Math.PI) * 2.0; }, () => { sh.rotation.x = R0; });
       }
       if (!hit) return;
       const FD = land + 0.5;
-      let landed = false;
+      let landed = false, bxHit = bx0;
+      const fv = new T.Vector3();                    // 重複用同一個,不要每幀 new
       play(FD, (p, e) => {
         const q = (p * FD - land) / 0.5;             // 杖砸到底之後才跑命中效果
         if (q < 0) { flash.material.opacity = 0; return; }
-        if (!landed) { landed = true; camShake = 0.05; }
+        if (!landed) {
+          landed = true; camShake = 0.05;
+          /* ★ 打退要從**獸迎上來之後的位置**起算,不是從揮杖前的位置。
+             不然這一幀會把獸瞬移回原位 = 剛好在「杖砸到底、兩者最近」那一刻把接觸感抹掉。*/
+          bxHit = beast ? beast.position.x : bx0;
+        }
         const k = Math.min(1, q), ek = ease(k);
-        flash.position.set(x0 - 0.55, 1.0, 0.1); flash.material.opacity = (1 - k) * 0.9;
+        /* 💥 命中白光畫在**杖頭上**,不再畫在「獸前面 0.55」的固定點。
+           由來:使用者「看起來牧人是對空氣攻擊」——光在半空中亮,而杖在別的地方,
+           兩件事分開就永遠不像打中。光跟著杖頭走,砸到哪就亮在哪。*/
+        if (U.staffHead) flash.position.copy(U.staffHead.getWorldPosition(fv));
+        else flash.position.set(bxHit - 0.55, 1.0, 0.1);
+        flash.material.opacity = (1 - k) * 0.9;
         flash.scale.setScalar(0.6 + k * 1.5);
-        if (beast) { beast.position.x = x0 + ek * 0.42; beast.rotation.z = Math.sin(k * Math.PI) * 0.18; beast.userData.headJ.rotation.z = Math.sin(k * Math.PI) * 0.4; }
-      }, () => { if (beast) { beast.rotation.z = 0; beast.userData.headJ.rotation.z = 0; } flash.material.opacity = 0; });
+        if (beast) { beast.position.x = bxHit + toBeast * ek * 0.42; beast.rotation.z = Math.sin(k * Math.PI) * 0.18; beast.userData.headJ.rotation.z = Math.sin(k * Math.PI) * 0.4; }
+      }, () => { if (beast) { beast.position.x = bx0; beast.rotation.z = 0; beast.userData.headJ.rotation.z = 0; } flash.material.opacity = 0; });
     },
     /* 🛡 閃避:牧人側身翻滾(位移+旋轉+小跳),獸撲空前衝再回位 */
     dodge() {
@@ -1744,6 +1828,15 @@ const B3D = (() => {
        (WebGL canvas 沒開 preserveDrawingBuffer,toDataURL 讀不到畫面,只能這樣驗) */
     probe() {
       if (!ready) return null;
+      /* 🦯 杖頭與獸頭的**世界座標與距離** —— 0730 加的。
+         由來:使用者回報「看起來牧人是對空氣攻擊,沒有真的打到獸」。
+         armX 只能證明「手揮了」,證不了「杖碰到獸」;那要比兩個世界座標才知道。
+         實測當時:杖頭砸到底在 (-0.44, 1.30, 0.64)、獸頭在 (0.97, 0.94, -0.13) ⇒ 差 1.64,
+         而獸頭半徑只有 ~0.48 ⇒ 差三個頭以上。高度其實是對的,差的全是水平距離。 */
+      const sHead = shep.userData.staffHead, bHead = beast && beast.userData.headJ;
+      const sp = sHead ? sHead.getWorldPosition(new T.Vector3()) : null;
+      const bp = bHead ? bHead.getWorldPosition(new T.Vector3()) : null;
+      const r3 = (v) => v ? [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)] : null;
       return {
         armX: +shep.userData.arms[1].shJ.rotation.x.toFixed(3),
         shepX: +shep.position.x.toFixed(3), shepZ: +shep.position.z.toFixed(3), shepY: +shep.position.y.toFixed(3),
@@ -1751,6 +1844,8 @@ const B3D = (() => {
         sheepX: +sheep.position.x.toFixed(3), sheepY: +sheep.position.y.toFixed(3),
         ropeOn: rope.visible, flash: +flash.material.opacity.toFixed(2), lock,
         parts: scene ? scene.children.length : 0,
+        staffHead: r3(sp), beastHead: r3(bp),
+        reach: (sp && bp) ? +sp.distanceTo(bp).toFixed(2) : null,   // ← 這個數字要小到「碰得到」才算真的打中
       };
     },
     /* 離開戰鬥:停 RAF + dispose(手機不要一直燒 GPU) */
@@ -1769,6 +1864,11 @@ const B3D = (() => {
       ren = scene = cam = beast = shep = sheep = rope = flash = ground = null; ready = false;
     },
   };
+  /* 🔬 自動驗收把手(0730 加)。姊妹站 davidbeasts2p5d 早就有 `window.__davidbeasts`,
+     它的 Playwright 驗收腳本就是靠那個抓 yaw/黑化色;本站的 probe() 寫好了卻**沒接出來**,
+     所以「杖有沒有真的打到獸」只能用肉眼猜。接出來之後才量得到(見 probe 的 reach)。
+     ★ 只讀不寫、也不影響遊戲流程;正式站留著沒關係(和姊妹站同一個做法)。*/
+  try { window.__sq3d = A; } catch { /* ignore */ }
   return A;
 })();
 
