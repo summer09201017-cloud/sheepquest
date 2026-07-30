@@ -84,6 +84,7 @@
   <span class="chip">🐑 <span id="count">0</span>/100</span>
   <span class="grow"></span>
   <button class="btn" id="ttsBtn" title="把經文唸出來(給還不識字的孩子);按一下可以關掉">🔊 朗讀</button>
+  <button class="btn" id="bgmBtn" title="背景音樂與音效(打到獸、被獸撞到…);按一下可以關掉。和「朗讀」是分開的兩個開關,教室裡常只想關音樂">🎵 音樂</button>
   <button class="btn" id="flockBtn">📖 羊圈</button>
 </div>
 <button class="btn primary" id="nearBar">🪢 帶回這隻羊!</button>
@@ -223,6 +224,160 @@ const VOICE = {                          // 經文出處 → 預烤人聲檔(內
   '撒上 17:37': './voice/1sam17-37.mp3',
   '_on':       './voice/voice-on.mp3',
 };
+/* ══════════════════════════════════════════════════════════════════════════════
+   🎵 音樂與音效(2026-07-30 使用者點名:「要有背景音樂與音效,例如打到獸的音效、被獸撞到的音效」)
+   ★ **零音檔**:全部用 Web Audio 即時合成(skill procedural-bgm / sfx-kit)——
+     不塞任何 mp3 ⇒ PWA 不變大、**離線一樣有聲音**、CORE 清單不用動。
+   ★ 版權鐵則:旋律**原創**(A 小調牧歌風),絕不重現任何商業曲的音符。
+   ★★ **和朗讀是兩套,不可混**:朗讀經文一律**預烤人聲 mp3**(全艦隊鐵則,合成音會被退件),
+      本模組只管音樂與音效 ⇒ 兩個獨立靜音鈕:`🔊 朗讀`(save.mute)/ `🎵 音樂`(save.muteBgm)。
+      老師在教室常只想關掉音樂、留著朗讀,分開才用得順。
+   ★ 瀏覽器規定音訊要在**使用者手勢**裡啟動 → unlock() 掛在第一次 pointerdown(只跑一次)。
+   ★ 分頁切走就暫停音樂(手機省電、也不會在背景一直響)。
+   ★ 任何音訊錯誤都不可以影響玩 → 全部包 try/catch,壞了就安靜。
+   ══════════════════════════════════════════════════════════════════════════════ */
+const SFX = {
+  ctx: null, music: null, sfx: null, _track: null, _timer: null, _next: 0, _unlocked: false,
+  get muted() { return !!save.muteBgm; },
+  init() { this.paint(); },
+  paint() { const b = $('bgmBtn'); if (b) b.textContent = this.muted ? '🔇 音樂' : '🎵 音樂'; },
+  toggle() {
+    save.muteBgm = !save.muteBgm; persist(); this.paint();
+    /* ⚠ 靜音要用 stopMusic(**true**)=保留「本來在播哪首」。
+       第一版寫 stopMusic() 會把 _want 一起清掉 ⇒ **關掉音樂再打開,音樂不會回來**
+       (使用者的感覺是「這個開關壞了」)。驗收腳本就是這樣抓到的。 */
+    if (this.muted) this.stopMusic(true);
+    else { this.unlock(); if (this._want) this.startMusic(this._want); }
+  },
+  unlock() {
+    if (this._unlocked) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.music = this.ctx.createGain(); this.music.gain.value = 0.11;   // 音樂壓低:不可蓋過朗讀
+      this.sfx = this.ctx.createGain(); this.sfx.gain.value = 0.5;
+      this.music.connect(this.ctx.destination); this.sfx.connect(this.ctx.destination);
+      this._unlocked = true;
+    } catch (e) { /* 沒有 Web Audio 就整包安靜,遊戲照玩 */ }
+  },
+  /* 單音:柔和起音/收音包絡(硬切會「啪」一聲) */
+  tone(f, dur, at, gain, type, dest) {
+    if (!this.ctx) return;
+    try {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type || 'triangle'; o.frequency.value = f;
+      const t = at ?? this.ctx.currentTime;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + Math.min(0.03, dur * 0.25));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(dest || this.sfx);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) {}
+  },
+  /* 掃頻:一個音在時間內從 f0 滑到 f1(命中的「咚」、閃避的「咻」都靠它) */
+  sweep(f0, f1, dur, gain, type) {
+    if (!this.ctx) return;
+    try {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime;
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      g.gain.setValueAtTime(Math.max(0.0002, gain), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(this.sfx);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) {}
+  },
+  /* 白噪音(木頭撞擊/揮空的風聲);用短 buffer + 低通,不用 ScriptProcessor */
+  noise(dur, gain, cut) {
+    if (!this.ctx) return;
+    try {
+      const n = Math.floor(this.ctx.sampleRate * dur);
+      const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);   // 自帶衰減
+      const s = this.ctx.createBufferSource(); s.buffer = buf;
+      const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut || 1200;
+      const g = this.ctx.createGain(); g.gain.value = gain;
+      s.connect(f); f.connect(g); g.connect(this.sfx);
+      s.start();
+    } catch (e) {}
+  },
+
+  /* ── 音效表 ──
+     ★ 設計原則(beast-boss-kit「獸不可恐怖」的聲音版):獸的聲音做成**低沉但不刺耳**,
+       絕不用尖銳高頻或咆哮質感 —— 這是給主日學孩子的,嚇到就失敗了。 */
+  hitBeast() {                                   // 🦯 打到獸:木杖「咚」+ 一點悶擊
+    this.unlock(); this.noise(0.14, 0.5, 900); this.sweep(320, 90, 0.18, 0.4, 'triangle');
+    this.tone(196, 0.12, undefined, 0.22, 'sine');
+  },
+  whiff() { this.unlock(); this.noise(0.16, 0.22, 2600); },          // 揮空:一陣風聲
+  bitten() {                                     // 😣 被獸撞到:悶悶一撞 + 下滑(不做咆哮)
+    this.unlock(); this.noise(0.2, 0.42, 500);
+    this.sweep(180, 70, 0.3, 0.34, 'sine'); this.tone(147, 0.18, undefined, 0.2, 'triangle');
+  },
+  dodge() { this.unlock(); this.sweep(520, 980, 0.16, 0.24, 'sine'); },   // 🛡 閃過:輕快上滑
+  beastFlee() {                                  // 🎉 獸被趕走:三音上行(小勝利,不喧鬧)
+    this.unlock(); const t = this.ctx ? this.ctx.currentTime : 0;
+    [440, 554, 659].forEach((f, i) => this.tone(f, 0.22, t + i * 0.11, 0.26, 'triangle'));
+  },
+  soothe() { this.unlock(); this.tone(880, 0.18, undefined, 0.2, 'sine'); this.tone(1320, 0.14, undefined, 0.12, 'sine'); },
+  home() {                                       // 🏠 帶回家:上行四音(溫柔的完成感)
+    this.unlock(); const t = this.ctx ? this.ctx.currentTime : 0;
+    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.3, t + i * 0.13, 0.24, 'triangle'));
+  },
+
+  /* ── 背景音樂:兩首原創曲(走路/戰鬥),[頻率Hz, 拍數],0=休止 ──
+     walk  = A 小調牧歌:音符徐緩下行再回升 ⇒ 曠野找羊的安靜與盼望
+     fight = 同調但 BEAT 更快、音型上行密集 ⇒ 緊張但不兇(孩子不可被音樂嚇到) */
+  TRACKS: {
+    walk: {
+      BEAT: 0.46,
+      MELODY: [[440, 2], [392, 1], [330, 1], [349, 2], [330, 2], [294, 1], [330, 1], [392, 2], [440, 2],
+        [523, 2], [494, 1], [440, 1], [392, 2], [349, 2], [330, 2], [0, 2]],
+      BASS: [110, 87, 131, 98, 110, 87, 98, 110],
+    },
+    fight: {
+      BEAT: 0.3,
+      MELODY: [[440, 1], [523, 1], [494, 1], [440, 1], [392, 1], [440, 1], [523, 2],
+        [587, 1], [523, 1], [494, 1], [440, 1], [392, 2], [330, 2],
+        [440, 1], [494, 1], [523, 1], [587, 1], [659, 2], [587, 2]],
+      BASS: [110, 110, 98, 98, 87, 87, 110, 110, 98],
+    },
+  },
+  startMusic(name) {
+    this._want = name;
+    if (this.muted) return;
+    this.unlock();
+    if (!this.ctx || this._track === name) return;
+    this.stopMusic(true);
+    this._track = name;
+    this._next = this.ctx.currentTime + 0.08;
+    this._pump();
+  },
+  /* 提前把下一段排進去(輪詢),循環才無縫;分頁切回也不會亂。 */
+  _pump() {
+    if (!this.ctx || !this._track || this.muted) return;
+    const T = this.TRACKS[this._track];
+    if (!T) return;
+    const loopBeats = T.MELODY.reduce((s, [, b]) => s + b, 0);
+    while (this._next < this.ctx.currentTime + 1.4) {
+      let t = this._next;
+      for (const [f, b] of T.MELODY) { if (f) this.tone(f, b * T.BEAT * 0.9, t, 0.5, 'triangle', this.music); t += b * T.BEAT; }
+      for (let i = 0; i < T.BASS.length; i++) this.tone(T.BASS[i], T.BEAT * 3.5, this._next + i * 4 * T.BEAT, 0.42, 'sine', this.music);
+      this._next += loopBeats * T.BEAT;
+    }
+    this._timer = setTimeout(() => this._pump(), 600);
+  },
+  stopMusic(keepWant) {
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    this._track = null;
+    if (!keepWant) this._want = null;
+    // 已排進去的音會自己收尾(音量包絡),不用硬切
+  },
+};
+
 const TTS = {
   _cur: null,                            // 正在播的那支,新的要先把它停掉
   get muted() { return !!save.mute; },
@@ -421,11 +576,13 @@ $('startBtn').onclick = () => {
     onPos(p.coords.latitude, p.coords.longitude);
     watching = navigator.geolocation.watchPosition(q => onPos(q.coords.latitude, q.coords.longitude),
       () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
+    SFX.startMusic('walk');   // 🎵 出發就有平靜的牧歌(這是使用者手勢裡,所以一定播得出來)
     toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
   }, () => toast('拿不到定位(要允許權限)——或改用 🧪 測試模式'), { enableHighAccuracy: true, timeout: 10000 });
 };
 $('demoBtn').onclick = () => {
   demo = true;
+  SFX.startMusic('walk');   // 🎵 同上:測試模式也要有音樂
   $('introPanel').classList.remove('on');
   // ★ 一律寫明確值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑:CSS 藏的元素清 inline 還原不了)
   $('walkBtn').style.display = 'inline-block';
@@ -509,6 +666,7 @@ function startCatch() {
 /* ⚔️ 第一階段:趕走野獸 */
 function startFight() {
   phase = 'fight'; bHp = target.beast.hp; tele = false; setTele(false);
+  SFX.startMusic('fight');                 // 🎵 換成緊張曲(同 A 小調、拍子更快;刻意不做兇的音色)
   nextTele = performance.now() + 2200;
   $('catchTitle').textContent = `⚔️ ${target.beast.n}叼著 ${target.gold ? '✨' : ''}${target.name}`;
   $('sheepBig').textContent = target.beast.e + target.kind.e;
@@ -521,6 +679,7 @@ function startFight() {
 const drawBeastHp = () => { $('trust').textContent = `${target.beast.e} ` + '🟥'.repeat(bHp) + '⬜'.repeat(target.beast.hp - bHp); };
 function bite() {
   B3D.bite();
+  SFX.bitten();                                   // 😣 被撲:悶悶一撞(刻意不做咆哮,獸不可恐怖)
   spd = Math.min(spd * 1.08, 2.2);                // 獸更兇=指針掃快一點;★進度不倒退
   nextTele = performance.now() + 1800 + Math.random() * 900;
   $('sheepBig').style.transform = 'translateX(-16px)';
@@ -532,6 +691,7 @@ $('dodgeBtn').onclick = () => {
   if (tele) {
     tele = false; setTele(false);
     B3D.dodge();
+    SFX.dodge();                                  // 🛡 閃過:輕快上滑
     nextTele = performance.now() + 1500 + Math.random() * 900;
     $('catchMsg').textContent = '🛡 好身手,閃過了!趁現在——綠區按甩杖!';
   } else $('catchMsg').textContent = '(還沒有攻擊,留著力氣等紅線亮起)';
@@ -552,6 +712,8 @@ function beastDown() {
   $('beastVerse').style.display = '';
   $('sheepBig').style.transform = 'none';
   B3D.flee();                                     // 3D:獸轉身跑掉並淡出(不流血)
+  SFX.beastFlee();                                // 🎉 三音上行(小勝利,不喧鬧)
+  SFX.startMusic('walk');                         // 戰鬥結束 → 音樂回到平靜的牧歌
   startLasso();
   $('catchMsg').textContent = `🎉 ${target.beast.n}被趕走了!${target.name} 從牠口中脫身——現在溫柔地把牠帶回來。`;
 }
@@ -565,16 +727,17 @@ $('ropeBtn').onclick = () => {
   if (phase === 'done') return;                   // 已經帶回家了,後面的連按一律忽略
   if (B3D.busy()) return;                         // 動畫演出中不吃輸入(回合式)
   if (phase === 'fight') {
-    if (tele) { B3D.strike(false); return bite(); }   // 紅線亮還硬打=揮空+被撲(判定=畫面)
+    if (tele) { B3D.strike(false); SFX.whiff(); return bite(); }   // 紅線亮還硬打=揮空+被撲(判定=畫面)
     if (inZoneNow()) {
       B3D.strike(true);
+      SFX.hitBeast();                              // 🦯 杖擊命中:木頭「咚」+悶擊
       bHp--; drawBeastHp();
       $('sheepBig').style.transform = 'translateX(18px)';
       setTimeout(() => { $('sheepBig').style.transform = 'none'; }, 220);
       if (bHp <= 0) return beastDown();
       newZone(30);
       $('catchMsg').textContent = `打得好!${target.beast.n}退了一步——再來!`;
-    } else { B3D.strike(false); $('catchMsg').textContent = `揮空了(${target.beast.n}沒事)——等指針進綠區再打!`; }
+    } else { B3D.strike(false); SFX.whiff(); $('catchMsg').textContent = `揮空了(${target.beast.n}沒事)——等指針進綠區再打!`; }
     return;
   }
   if (inZoneNow()) {
@@ -598,6 +761,8 @@ function caught() {
   save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
     rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
   persist();
+  SFX.home();                              // 🏠 上行四音:溫柔的完成感
+  SFX.startMusic('walk');                  // 帶回家了 → 音樂回到平靜的牧歌
   B3D.caught();                            // 3D:牧人舉杖、羊蹦到腳邊、金光一閃
   demoTarget = null;                       // 練習鎖定用掉了就放開(下次按 ⚔️ 會找新的)
   try { navigator.sendBeacon(BEACON.replace('sheepquest', 'sheepquest-done')); } catch (e) {}
@@ -681,10 +846,17 @@ $('shepStyleSel').onchange = e => {
   };
 })();
 $('ttsBtn').onclick = () => TTS.toggle();
+$('bgmBtn').onclick = () => SFX.toggle();
+/* 🔓 音訊解鎖:瀏覽器規定要在**使用者手勢**裡建 AudioContext。
+   掛在 document 的 pointerdown(capture、once)⇒ 孩子按下的第一顆鈕就解開,之後都能發聲。 */
+document.addEventListener('pointerdown', () => SFX.unlock(), { capture: true, once: true });
+/* 分頁切走就停音樂(手機省電;切回來由下一個 startMusic 接回) */
+document.addEventListener('visibilitychange', () => { if (document.hidden) SFX.stopMusic(true); else if (SFX._want) SFX.startMusic(SFX._want); });
 // 逐字和合本(0730 用 cuv 查驗過;原稿混了太 18:12 又掛錯出處)+ 出處一起唸(鐵律)
 $('introSpeak').onclick = () => TTS.speakScripture(
   '你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。路加福音十五章四到五節。', { ref: '路 15:4-5' });
 TTS.init();
+SFX.init();
 $('flockBtn').onclick = openFlock;
 $('backBtn').onclick = () => $('flockPanel').classList.remove('on');
 

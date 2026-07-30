@@ -45,7 +45,12 @@
 //                 ③命中白光改**跟著杖頭**走,不再固定畫在獸前面 0.55(光和杖分開就永遠不像打中)
 //                 ④待機站位小縮(2.86→2.59;★量出來主要差在 z 不是 x),紅線閃避空間感不動
 //                 ⑤probe() 加 staffHead/beastHead/reach,並接出 window.__sq3d 讓自動驗收量得到
-const CACHE = 'sheepquest-v10';
+// v11(2026-07-30):🎵 **背景音樂與音效**(使用者點名:打到獸的音效、被獸撞到的音效)——
+//                 全部 Web Audio 即時合成=**零音檔**(PWA 不變大、離線一樣有聲音、CORE 清單不用動);
+//                 兩首原創 A 小調曲(walk 牧歌 / fight 緊張),六個音效
+//                 (杖擊命中/揮空/被撲/閃過/獸被趕走/帶回家);獸的音效刻意做悶不做咆哮(獸不可恐怖)。
+//                 ★ 音樂與朗讀是**兩個獨立開關**(🎵 音樂 / 🔊 朗讀)——教室裡常只想關音樂。
+const CACHE = 'sheepquest-v11';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
