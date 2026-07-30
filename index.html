@@ -121,7 +121,9 @@
   <!-- ⚠ 0730 這段文案必須跟著功能改成實話:加了「背景跟著地點變」之後,會送出粗略位置去查地名。
        原本寫「你的位置絕不上傳」,不改就是對家長說謊。★ 改文案與加開關是這個功能的必要條件,不是選配。-->
   <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
-    🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。不想連外查就把下面的勾勾打開。</p>
+    🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。<br>
+    🗺 戰鬥時腳下鋪的是 OpenStreetMap 的地圖圖磚(和上面那張地圖同一個來源,本來就會取圖)。<br>
+    上面兩件都可以用下面那個勾勾一次關掉(關了背景一律用草地)。</p>
   <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
   <!-- 🧑‍🌾 牧人的樣子由玩家自己選(0730 使用者拍板)。動物一律圓萌,只有「人」給選。
        放在開場面板 = 每次開 App 都看得到、隨時能換(和 🔒 同一區,不新開設定頁)。 -->
@@ -190,6 +192,12 @@ let save = {};
 try { save = JSON.parse(localStorage.getItem('sheepquest-v1') || '{}') || {}; } catch (e) { save = {}; }
 save.flock = save.flock || {};   // id → {name, kind, gold, ts}
 const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringify(save)); } catch (e) {} };
+/* 🗺 腳下鋪真實地圖:**預設開啟**(使用者 0730 拍板)。
+   ★ 為什麼要寫成「!== false」而不是直接讀 save.mapGround:舊使用者的存檔裡根本沒有這個鍵
+     (undefined),直接讀會是 falsy=關閉 → 等於「預設開啟」對舊使用者無效。
+     用 !== false 才能做到「沒選過=開啟、明確選過草地=尊重他的選擇」。
+   ★ 網路壞掉/離線也不會有事:圖磚是非同步載的,載不到就一直是草地(見 buildMapGround)。*/
+const mapOn = () => save.mapGround !== false;
 const flockCount = () => Object.keys(save.flock).length;
 
 /* ── 🔊 經文朗讀:預烤「曉臻」人聲 mp3 ──
@@ -638,7 +646,7 @@ $('noGeoChk').onchange = e => {
   if (save.noGeo) { PLACE.scene = 'grass'; PLACE.label = ''; }
 };
 /* 🗺 腳下的地面(草地 / 真實地圖)——存進既有存檔,不新開 localStorage 鍵。下一場戰鬥生效。 */
-$('groundSel').value = save.mapGround ? 'map' : 'grass';
+$('groundSel').value = mapOn() ? 'map' : 'grass';       // 預設開啟(見 mapOn 的註解)
 $('groundSel').onchange = e => {
   save.mapGround = e.target.value === 'map'; persist();
   if (save.mapGround && save.noGeo)
@@ -1260,7 +1268,7 @@ const B3D = (() => {
   /* 🗺 地圖地面開著的時候,**地上的積木裝飾要讓位**:地圖本來就畫了馬路/跑道/步道,
      再鋪一層積木馬路就是同一條路畫兩次(而且會蓋掉地圖)。只有「立起來的東西」
      (樓、橋、樹、車頂棚)才留著 —— 那些地圖上看不到,是真的有加分。*/
-  const flatOK = () => !(save.mapGround && !save.noGeo);
+  const flatOK = () => !(mapOn() && !save.noGeo);
   function tilePos(lat, lng, z) {                            // Web Mercator:經緯度 → 圖磚座標+磚內比例
     const n = 2 ** z, rad = lat * Math.PI / 180;
     const x = (lng + 180) / 360 * n;
@@ -1496,7 +1504,7 @@ const B3D = (() => {
          圖載好了再無縫換上去(載不到就一直是草地,孩子完全不會知道出過事)。
        ★ 尊重 🔒「不要連外查地點」:勾了就完全不抓圖磚(雖然地圖畫面本來就會取圖,
          但那個勾勾對家長的承諾是「不為了背景多連外」,所以這裡一律照最保守的解讀)。*/
-    if (save.mapGround && !save.noGeo && pos) buildMapGround(pos.lat, pos.lng);
+    if (mapOn() && !save.noGeo && pos) buildMapGround(pos.lat, pos.lng);
     else grassGround();
     /* 📷 照片背景:同樣**不 await**。找得到 photos/<場景>.jpg 就換上(並收掉積木背景),
        找不到就什麼都不做 → 積木背景照常。示範模式用程式畫的假圖。*/

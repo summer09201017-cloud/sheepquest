@@ -4,10 +4,17 @@
 (手機瀏覽器開 → 加到主畫面=App)
 
 ⏩⏩⏩ 【交接段】(2026-07-30 夜,HFP 機)⏩⏩⏩
-狀態:**v8 已上線、已線上實測通過。這個 repo 本輪收工,工作區乾淨、已 push。**
-      線上:https://hfpc-sheepquest.summer09201017.workers.dev(sw 版名 sheepquest-v8)
-      驗過:sw=v8 ✔ / .git/config 與 .git/HEAD 都 404 ✔ / 五支 voice/*.mp3 都 200 ✔
-            / 線上開瀏覽器實玩一場並截圖(桌面「尋羊記v8截圖」第 13 張)✔
+狀態:**v9 已上線、已線上實測通過。這個 repo 本輪收工,工作區乾淨、已 push。**
+      線上:https://hfpc-sheepquest.summer09201017.workers.dev(sw 版名 sheepquest-v9)
+      驗過:sw=v9 ✔ / .git/config 與 .git/HEAD 都 404 ✔ / 五支 voice/*.mp3 都 200 ✔
+            / 線上用全新使用者(清掉 localStorage)實玩一場:**地圖地面預設就鋪出來**、
+              OSM 來源標示有顯示 ✔(截圖在桌面「尋羊記v8截圖」)
+      ★★ 線上驗收有兩個會害你誤判的陷阱,兩個都踩過:
+        ① 要抓 `/`(根路徑),**不要抓 `/index.html`** —— Cloudflare 會 307 轉址,
+           抓 index.html 拿到 0 bytes,看起來像檔案掛了。
+        ② **`?bust=` 對 Cloudflare Workers 靜態資源沒有用**(它不把 query 當快取鍵的一部分)。
+           要拿到剛部署的版本必須送標頭:`curl -H 'Cache-Control: no-cache' -H 'Pragma: no-cache'`。
+           07-30 就是因為用 `?bust=` 拿到舊的 sw.js,差一步就誤報「部署失敗」。
       ⚠ 部署會被 zero-pii-guard 攔一次,那是**誤判**:它把 CDN 版本號 `leaflet@1.9.4`、
         `three@0.160.0` 當成 email。本輪重新逐項查過:沒有 email、沒有電話/身分證、沒有金鑰,
         唯一的座標是 25.0330,121.5654=台北 101(客廳測試模式的虛擬起點)→ 才用 PII_OK=1 放行。
@@ -16,6 +23,10 @@
         抓 index.html 會拿到 0 bytes,看起來像「檔案掛了」其實是假象(本輪踩過)。
 
 ★★ 下一步(使用者已拍板,按順序做)★★
+ 0) 🗺 地圖地面**已設成預設開啟**(v9,使用者 0730 拍板)。
+    ⚠ 判斷式一定要寫 `save.mapGround !== false`(程式裡的 mapOn()),**不可以直接讀 save.mapGround**:
+      舊使用者存檔裡沒有這個鍵(undefined)→ 直接讀是 falsy=關閉,「預設開啟」對舊使用者會失效。
+      三種情況都測過:全新使用者=地圖 ✔ / 明確選過草地的被尊重 ✔ / v8 舊使用者=自動變地圖 ✔
  1) **大衛打獅熊(davidbeasts3d)換皮成 tsum 動物** —— 使用者說「可以從大衛打獅熊開始,開工」。
     它是「有 3D 動物 × 真的有人玩(近 30 天 24 次)」交集的第一名。獅、熊的定案造型就在本檔下面。
  2) 另一個 session 的 skill `tsum-3d-kit`(含 assets/tsum3d.js)**還沒同步、還沒推上共用倉庫** ——
