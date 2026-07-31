@@ -157,16 +157,28 @@ await sleep(2500)
   if (arrived) {
     await page.locator("#nearBar").click()
     await sleep(1200)
-    // 甩杖/套索一直按到結算;有紅色預告線就先閃避(不閃會被咬掉信任度)
+    /* 甩杖/套索打到結算。
+       ⚠ 第一版是**每 110ms 盲按一次** —— 本機剛好過、線上就 FAIL:羊的種子含時段,
+         不同時間遇到的獸與節奏都不一樣,盲按能不能命中綠區純靠運氣 = 閘門會間歇性假紅。
+       ⇒ 改成**像人一樣瞄準**:讀畫面上指針與綠區的位置,進綠區才按套索;
+         紅色預告線亮起就先閃避。仍然是真的 click(不可以改成 evaluate 呼叫函式)。 */
     let done = false
-    for (let i = 0; i < 160 && !done; i++) {
-      const tele = await page.evaluate(() =>
-        document.getElementById("meterBox").classList.contains("tele"))
-      const btn = tele ? "#dodgeBtn" : "#ropeBtn"
-      await page.locator(btn).click({ timeout: 2000 }).catch(() => {})
-      await sleep(110)
-      done = await page.evaluate(() =>
-        document.getElementById("pcPanel").classList.contains("on"))
+    for (let i = 0; i < 500 && !done; i++) {
+      const st = await page.evaluate(() => {
+        const z = document.getElementById("zone"), n = document.getElementById("needle")
+        const zx = +z.dataset.x, zw = +z.dataset.w
+        const m = /([\d.]+)%/.exec(n.style.left || "")
+        const t = m ? +m[1] : -1
+        return {
+          tele: document.getElementById("meterBox").classList.contains("tele"),
+          inZone: t >= 0 && t >= zx && t <= zx + zw,
+          done: document.getElementById("pcPanel").classList.contains("on"),
+        }
+      })
+      if (st.done) { done = true; break }
+      if (st.tele) await page.locator("#dodgeBtn").click({ timeout: 2000 }).catch(() => {})
+      else if (st.inZone) await page.locator("#ropeBtn").click({ timeout: 2000 }).catch(() => {})
+      await sleep(45)
     }
     check("⑤b 帶回羊之後**明信片畫面自己跳出來**", done)
 

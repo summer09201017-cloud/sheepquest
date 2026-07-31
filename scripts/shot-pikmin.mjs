@@ -60,11 +60,21 @@ for (let i = 0; i < 40; i++) {
 }
 await page.locator("#nearBar").click()
 await sleep(1200)
-for (let i = 0; i < 160; i++) {
-  const tele = await page.evaluate(() => document.getElementById("meterBox").classList.contains("tele"))
-  await page.locator(tele ? "#dodgeBtn" : "#ropeBtn").click({ timeout: 2000 }).catch(() => {})
-  await sleep(110)
-  if (await page.evaluate(() => document.getElementById("pcPanel").classList.contains("on"))) break
+/* 瞄準綠區再按(同 verify-pikmin:盲按會間歇性打不完,種子含時段、每次遇到的獸不一樣) */
+for (let i = 0; i < 500; i++) {
+  const st = await page.evaluate(() => {
+    const z = document.getElementById("zone"), n = document.getElementById("needle")
+    const zx = +z.dataset.x, zw = +z.dataset.w
+    const m = /([\d.]+)%/.exec(n.style.left || "")
+    const t = m ? +m[1] : -1
+    return { tele: document.getElementById("meterBox").classList.contains("tele"),
+      inZone: t >= 0 && t >= zx && t <= zx + zw,
+      done: document.getElementById("pcPanel").classList.contains("on") }
+  })
+  if (st.done) break
+  if (st.tele) await page.locator("#dodgeBtn").click({ timeout: 2000 }).catch(() => {})
+  else if (st.inZone) await page.locator("#ropeBtn").click({ timeout: 2000 }).catch(() => {})
+  await sleep(45)
 }
 await sleep(600)
 await page.screenshot({ path: `${OUT}/v14-3-postcard.png`, fullPage: true })
