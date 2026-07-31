@@ -246,7 +246,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v15(2026-07-31 🧩 從 LINE 點進來會先提醒「LINE 的內建瀏覽器不給定位,請用其他瀏覽器開啟」;v14 的 🏞 地點膠囊 + 🧭 指南針 + 📋 點羊看詳情 + 📮 明信片都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v16(2026-07-31 🗺 地圖底圖換成淡彩版,羊和野獸一眼看得出來;v15 的 🧩「從 LINE 開會先提醒換瀏覽器」與 v14 的 📮 明信片都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -256,7 +256,7 @@
   <div id="trust"></div>
   <div id="b3d"></div>
   <!-- 🗺 用 OSM 圖磚當地面時必須標示來源(這是 OpenStreetMap 的授權要求,不是可選的裝飾) -->
-  <div id="mapCredit" class="hint" style="display:none;margin-top:2px;opacity:.75">🗺 腳下的地圖 © OpenStreetMap</div>
+  <div id="mapCredit" class="hint" style="display:none;margin-top:2px;opacity:.75">🗺 腳下的地圖 © OpenStreetMap 貢獻者 © CARTO</div>
   <div id="b3dBar"><button class="btn" id="fsBtn" title="把 3D 戰鬥畫面放到最大(控制按鈕會留在下面)">⛶ 放大畫面</button></div>
   <div id="b3dHint" class="hint" style="display:none">3D 戰鬥畫面需要連網載入(離線時用下面的簡易版照樣能玩)。</div>
   <div id="meterBox">
@@ -282,7 +282,7 @@
   <!-- 🗺 地圖配色開關:CSS 調色改不掉 OSM 的路名與建築填色,不是每個人都喜歡 ⇒ 關得掉。
        (也讓 save.pikminMap 這個鍵「有讀也有寫」——只讀不寫的鍵是無聲失敗,守門 #23 抓的就是這個。)-->
   <label class="hint" style="display:block;margin-top:14px">
-    <input type="checkbox" id="mapColorSw"> 🗺 地圖用鮮豔配色(關掉就是原本的街道圖)
+    <input type="checkbox" id="mapColorSw"> 🗺 地圖再加一層鮮豔濾鏡(預設關;底圖已是淡彩的 CARTO Voyager,再疊會更糊、路名更難讀)
   </label>
 </section>
 
@@ -667,11 +667,21 @@ let map = null, youMarker = null, sheepMarkers = [], pos = null, demo = false, w
 let geoTick = null, geoT0 = 0, gotFix = false, lastAcc = null, geoNote = '';
 function initMap() {
   map = L.map('map', { zoomControl: false }).setView([pos.lat, pos.lng], 17);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-  /* 🗺 v14 ③ 皮克敏風配色:預設開,存檔裡明確關過才不套(同 mapGround 的 !== false 寫法,
-     否則舊使用者的存檔沒有這個鍵=undefined=falsy,等於「預設開」對他們無效)。 */
-  if (save.pikminMap !== false) $('map').classList.add('pikmin');
+  /* 🗺 v16:底圖換成 **CARTO Voyager**(使用者 07-31 拍板「先試中間那個」)。
+     為什麼:OSM 官方預設樣式是米色建築+滿滿路名的街道圖,再怎麼用 CSS 調色都不會變成
+     皮克敏那種淡雅感 —— 因為路名與填色都**烤在點陣圖磚裡**,CSS 拿不掉。
+     Voyager 本身就是淡彩、少雜訊的樣式,一行換完:不用 API key、不用 WebGL、不多一支 JS。
+     ⚠ 授權:CARTO 的免費底圖要求標示 **© OpenStreetMap 貢獻者 © CARTO**(下面 attribution 已加)。
+     ⚠ subdomains 是 a~d(預設只有 abc);`{r}` + detectRetina 讓高解析手機拿 @2x,字才不會糊。 */
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    { maxZoom: 19, subdomains: 'abcd', detectRetina: true,
+      attribution: '© OpenStreetMap 貢獻者 © CARTO' }).addTo(map);
+  /* 🗺 v16:額外的配色 filter 改成**預設關閉**(從 !== false 改成 === true)。
+     v14 會套 filter,是因為底圖是 OSM 官方樣式(米色建築+滿滿路名),想把它調柔一點。
+     v16 換成 CARTO Voyager 之後**底圖本身就夠乾淨**,再疊一層只會更糊、**路名更難讀**
+     —— 這是走在路上看的地圖,可讀性優先於好看(截圖比對過才決定的)。
+     開關留在 📖 羊圈裡,想比較的人自己開。 */
+  if (save.pikminMap === true) $('map').classList.add('pikmin');
   youMarker = L.marker([pos.lat, pos.lng], { icon: L.divIcon({ className: '', html: '<div class="youMark">🧑‍🌾</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
 }
 function refreshSheep() {
@@ -1194,7 +1204,7 @@ function openCards() {
 }
 $('cardsBtn').onclick = openCards;
 /* 🗺 地圖配色開關(在 📖 羊圈裡)。★ 顯示/隱藏一律用明確值,這裡是加/移 class,同樣不靠清空 inline。 */
-$('mapColorSw').checked = save.pikminMap !== false;
+$('mapColorSw').checked = save.pikminMap === true;   // v16:預設關(底圖已換成乾淨的 Voyager)
 $('mapColorSw').onchange = (e) => {
   save.pikminMap = !!e.target.checked; persist();
   $('map').classList.toggle('pikmin', save.pikminMap);
@@ -2088,7 +2098,9 @@ const B3D = (() => {
     mc.fillStyle = '#e8e0d4'; mc.fillRect(0, 0, 768, 768);   // 底色:圖磚沒到齊也不會是黑洞
     const jobs = [];
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      jobs.push(loadImg(`https://tile.openstreetmap.org/${TILE_Z}/${p.tx + i}/${p.ty + j}.png`)
+      /* v16:跟上面那張地圖換成同一個來源(CARTO Voyager),不然戰鬥地面與地圖是兩種畫風。
+         ★ CORS 查證過:cartocdn 一樣回 Access-Control-Allow-Origin: *,canvas 不會被污染。 */
+      jobs.push(loadImg(`https://a.basemaps.cartocdn.com/rastertiles/voyager/${TILE_Z}/${p.tx + i}/${p.ty + j}.png`)
         .then(im => { if (im) mc.drawImage(im, (i + 1) * 256, (j + 1) * 256, 256, 256); return !!im; }));
     }
     const got = (await Promise.all(jobs)).filter(Boolean).length;

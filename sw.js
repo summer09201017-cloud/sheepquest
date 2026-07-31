@@ -109,7 +109,17 @@
 //                      LINE 的 WebView 偶爾拿得到定位(看 LINE App 自己的權限),擋掉會誤傷。
 //                   ④ 真的是權限時:把**這台裝置**的做法排前面(Android 使用者不必先讀 iPhone 教學),
 //                      並補上舊版沒講的兩個開關:**系統定位總開關**、**瀏覽器 App 的定位權限**。
-const CACHE = 'sheepquest-v15';
+// v16(2026-07-31):🗺 **底圖換成 CARTO Voyager**(使用者拍板「先試中間那個」)。
+//                 v14 只是在 OSM 官方樣式上套 CSS filter,而**路名與建築填色都烤在點陣圖磚裡**,
+//                 CSS 拿不掉 ⇒ 再怎麼調都還是一張米色街道圖。Voyager 本身就是淡彩少雜訊的樣式,
+//                 一行換完:**不用 API key、不用 WebGL、不多一支 JS、不破離線**(圖磚本來就不進 SW 快取)。
+//                 ★ 為什麼不上真向量圖磚:要 +200KB 的 MapLibre、地圖也要吃 WebGL(手機更燙)、
+//                   API key 會出現在公開頁面原始碼裡、還有流量額度與帳單風險。留到「這個還不夠」再說。
+//                 ★ 授權:CARTO 免費底圖要求標示 **© OpenStreetMap 貢獻者 © CARTO**(地圖與戰鬥地面都已標)。
+//                 · 3D 戰鬥地面的圖磚也一起換,否則地圖與腳下是兩種畫風;CORS 查證過同樣是 `*`。
+//                 · 額外那層鮮豔 filter 改成**預設關閉**:截圖比對後,疊在 Voyager 上只會更糊、
+//                   **路名更難讀** —— 這是走在路上看的地圖,可讀性優先於好看。開關留在 📖 羊圈裡。
+const CACHE = 'sheepquest-v16';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',

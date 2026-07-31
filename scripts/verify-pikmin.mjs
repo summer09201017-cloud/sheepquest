@@ -99,18 +99,30 @@ await sleep(2500)
     after.shown && after.tf === "rotate(-270deg)", after.tf || "(沒有 transform)")
 }
 
-/* ══ ③ 皮克敏風地圖配色 ══ */
+/* ══ ③ 地圖底圖(v16:換成 CARTO Voyager,額外的 filter 改成預設關)══ */
 {
   const s = await page.evaluate(() => {
     const m = document.getElementById("map")
+    const img = m.querySelector("img.leaflet-tile")
     const probe = document.createElement("div")      // 圖磚可能還沒載進來,用同 class 的探針量規則有沒有生效
     probe.className = "leaflet-tile"; m.appendChild(probe)
     const f = getComputedStyle(probe).filter
     probe.remove()
-    return { cls: m.classList.contains("pikmin"), filter: f }
+    return {
+      cls: m.classList.contains("pikmin"), filter: f,
+      src: img ? img.src : "",
+      attr: (document.querySelector(".leaflet-control-attribution") || {}).textContent || "",
+      sw: !!document.getElementById("mapColorSw"),
+    }
   })
-  check("③ 地圖套上皮克敏風配色(.pikmin + 圖磚 filter 生效)",
-    s.cls && s.filter && s.filter !== "none", s.filter)
+  check("③a 底圖是 CARTO Voyager(不是 OSM 官方樣式)",
+    /cartocdn\.com\/rastertiles\/voyager/.test(s.src), s.src.slice(0, 70) || "(圖磚還沒載到)")
+  /* ★ CARTO 免費底圖的授權要求,漏了就是違反授權 —— 這一項不是裝飾 */
+  check("③b 有標示 CARTO 授權", /CARTO/.test(s.attr) && /OpenStreetMap/.test(s.attr), s.attr.slice(0, 60))
+  /* v16:額外那層鮮豔 filter 預設**關閉** —— 截圖比對後發現疊在 Voyager 上會更糊、路名更難讀,
+     而這是走在路上看的地圖,可讀性優先。開關留著讓人自己比較。 */
+  check("③c 額外的鮮豔濾鏡預設關閉(可讀性優先),但開關還在", !s.cls && s.sw,
+    s.cls ? "🔴 濾鏡竟然是開的" : "預設關 🟢")
 }
 
 /* ══ ④ 挑戰詳情面板 ══ */
