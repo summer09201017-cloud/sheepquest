@@ -75,6 +75,75 @@
   .youMark{font-size:26px}
   #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:40;background:#243328;color:#fff;
     padding:8px 16px;border-radius:20px;font-weight:700;display:none;max-width:86vw;text-align:center}
+
+  /* ═══ 🏞 v14:向皮克敏學的四件(地點膠囊 / 指南針 / 地圖配色 / 詳情面板)═══ */
+
+  /* ① 地點膠囊:地名反查早就在跑了(PLACE.label),v13 之前只用 3.2 秒的 toast 閃一下就沒了。
+        常駐一顆膠囊,孩子隨時知道「我在哪裡救羊」。文字過長要能截斷,不可以把整列擠爆。 */
+  /* ⚠ 截圖驗收抓到的:第一版把膠囊塞進 .top 那一排 —— 那排已經有 3 顆按鈕 + 2 個 chip,
+     flex 一擠,膠囊縮成一個小圓點、而且**把「朗讀/音樂/羊圈」的字擠成直排**(羊圈只剩「羊」)。
+     ⇒ 膠囊改成**自己一排、置中**(皮克敏也是置中),不跟按鈕搶寬度。 */
+  #placeChip{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+    max-width:74vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    border-color:var(--gold);background:#fffdf3}
+  /* 同一個病的根治:按鈕與 chip 的字一律不換行(折成直排比塞不下更難看也更難按) */
+  .top .btn,.top .chip{white-space:nowrap}
+  /* ⚠ 第二次截圖抓到:只加 nowrap 的話,390px 上「📖 羊圈」會被推出畫面外 ——
+     而羊圈是收藏冊**和明信片匣**的唯一入口,看不到等於那兩個功能不存在。
+     ⇒ 窄螢幕縮字級與內距,讓五個元件在 390px 上一次排得下(量過:約 356px < 可用 370px)。
+     ★ 不用「橫向捲」解:捲軸在手機上沒有提示,孩子不會知道右邊還有東西。 */
+  @media (max-width:430px){
+    .top{gap:4px;padding:8px 6px}
+    .top .btn{padding:7px 7px;font-size:12.5px;border-radius:12px}
+    .top .chip{padding:5px 7px;font-size:12.5px}
+  }
+
+  /* ② 指南針:拿不到方位就整顆藏起來 —— 一根不會動的針比沒有針更糟(會被當成壞掉)。 */
+  /* ⚠ 截圖抓到:top:56px 會**疊在「📖 羊圈」按鈕上面**(那排按鈕高度約 44px + 8px padding)。
+     壓到 104px,讓出整條上排;和地點膠囊(52px)也不互相蓋。 */
+  #compass{position:fixed;right:10px;top:104px;z-index:20;width:52px;height:52px;border-radius:50%;
+    background:#fffffff2;border:2px solid var(--green);box-shadow:0 2px 8px #0003;display:none}
+  #compass .needle{position:absolute;left:50%;top:50%;width:0;height:0;transform-origin:50% 50%;
+    transition:transform .12s linear}
+  /* 紅=北、白=南,兩個三角形拼成一根針(零圖檔) */
+  #compass .needle::before,#compass .needle::after{content:'';position:absolute;left:-6px;border-left:6px solid transparent;border-right:6px solid transparent}
+  #compass .needle::before{bottom:0;border-bottom:18px solid #c0392b}
+  #compass .needle::after{top:0;border-top:18px solid #eef3ee}
+  #compass .n{position:absolute;left:0;right:0;top:2px;text-align:center;font-size:10px;font-weight:800;color:#c0392b}
+  @media (prefers-reduced-motion:reduce){#compass .needle{transition:none}}
+
+  /* ③ 皮克敏風地圖配色:在 OSM 圖磚上套 filter。
+        ★ 誠實說:皮克敏是自己畫的向量地圖,這裡是**把既有圖磚調色**,不是真的重畫。
+          向量圖磚要 API key、要錢、且破壞「零後端+離線」,不值得。
+        ⚠ 這是**走在路上**用的地圖 —— 調色不可以調到看不見路名與路口,那是安全問題。
+          所以 contrast 只降一點點,亮度只加一點點;寧可不夠像也不能不好認路。 */
+  /* ⚠ 截圖驗收:第一版 saturate(1.45)/contrast(.93) **看不出差別**,還是標準 OSM 的米色街道圖。
+     加重:降對比把建築的米色洗淡、拉飽和讓公園綠與水藍跳出來。
+     ★ 但**改不掉的事實**:圖磚是點陣圖,路名與建築填色都烤在圖裡,CSS 拿不掉 ——
+       要真的像皮克敏那種乾淨向量圖,得換圖磚來源(等於新外部相依 + 授權問題),那要使用者拍板。 */
+  .pikmin .leaflet-tile{filter:saturate(1.75) brightness(1.10) contrast(.80) hue-rotate(-8deg)}
+
+  /* ④ 挑戰詳情底部面板(皮克敏點蘑菇會彈出來的那張)。
+        ★ 不用 .panel(那是整頁蓋版),這是從底部滑上來、還看得到地圖的半高面板。 */
+  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:28;background:var(--paper);
+    border-radius:18px 18px 0 0;box-shadow:0 -4px 20px #0003;padding:8px 16px 16px;
+    transform:translateY(110%);transition:transform .22s ease-out;display:none}
+  #sheet.on{transform:translateY(0)}
+  #sheet .grip{width:44px;height:5px;border-radius:3px;background:#c8d4cb;margin:2px auto 10px}
+  #sheet h2{margin:2px 0 4px;font-size:22px;color:var(--ink)}
+  #sheet .row{display:flex;gap:8px;margin-top:12px}
+  /* 截圖抓到:三顆鈕平分寬度時中文被折成兩行(「前往這/裡」)。字不換行、窄螢幕縮一級。 */
+  #sheet .row .btn{flex:1;text-align:center;white-space:nowrap;padding:10px 6px}
+  @media (max-width:430px){#sheet .row .btn{font-size:13.5px;padding:10px 4px}}
+  @media (prefers-reduced-motion:reduce){#sheet{transition:none}}
+
+  /* ⑤ 📮 明信片 */
+  #pcWrap{text-align:center}
+  #pcWrap canvas{width:min(420px,88vw);height:auto;border-radius:12px;box-shadow:0 4px 14px #0003;background:#fff}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:10px}
+  .cards figure{margin:0;background:#fff;border:2px solid #dfe7e1;border-radius:10px;padding:6px}
+  .cards img{width:100%;border-radius:6px;display:block}
+  .cards figcaption{font-size:11px;font-weight:700;color:#456;margin-top:4px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -90,7 +159,25 @@
   <button class="btn" id="bgmBtn" title="背景音樂與音效(打到獸、被獸撞到…);按一下可以關掉。和「朗讀」是分開的兩個開關,教室裡常只想關音樂">🎵 音樂</button>
   <button class="btn" id="flockBtn">📖 羊圈</button>
 </div>
+<!-- 🏞 v14 地點膠囊:顯示當場反查出來的地名(像皮克敏那顆「淡江大橋 ›」)。
+     ★ 地名是**執行時查來的**,不寫死在原始碼裡 —— 公開 repo 不會帶著任何人的所在地。
+     ★ 放在 .top **外面**、自己一排置中:塞進那一排會把按鈕的字擠成直排(截圖驗收抓到的)。 -->
+<button class="chip" id="placeChip" title="你現在這一帶(點一下看它對應哪個 3D 戰鬥背景)"></button>
+<!-- 🧭 v14 指南針(拿不到方位就永遠不顯示,見 COMPASS.arm)-->
+<div id="compass" title="紅色針頭指北"><span class="n">N</span><span class="needle"></span></div>
 <button class="btn primary" id="nearBar">🪢 帶回這隻羊!</button>
+
+<!-- 📋 v14 挑戰詳情面板:點地圖上的羊就彈出來(皮克敏點蘑菇那張) -->
+<div id="sheet">
+  <div class="grip"></div>
+  <h2 id="shTitle">—</h2>
+  <div class="hint" id="shInfo"></div>
+  <div class="row">
+    <button class="btn" id="shClose">← 關閉</button>
+    <button class="btn" id="shGo">📍 前往這裡</button>
+    <button class="btn primary" id="shCatch">🪢 帶回這隻羊</button>
+  </div>
+</div>
 <div class="bottom">
   <button class="btn" id="locBtn">📍 重新定位</button>
   <button class="btn" id="walkBtn" style="display:none">🚶 往最近的羊走一步</button>
@@ -156,7 +243,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v13(2026-07-31 🧪 等定位的時候可以直接改用「客廳測試模式」,不必乾等;v12 的 📍 定位會一直等到收到訊號、會顯示還差多少公尺都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v14(2026-07-31 🏞 地點膠囊 + 🧭 指南針 + 🗺 地圖變鮮豔 + 📋 點羊看詳情 + 📮 帶回羊會給一張明信片;v13 的 🧪「等定位時可直接改用客廳測試模式」也在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -185,7 +272,45 @@
   <div class="verse" id="flockVerse">「我告訴你們,一個罪人悔改,在天上也要這樣為他歡喜,較比為九十九個不用悔改的義人歡喜更大。」——路加福音 15:7</div>
   <div class="hint">已尋回 <b id="count2">0</b>/100 隻。金毛羊 ✨ 是稀有的——遇到要好好珍惜。</div>
   <div class="flock" id="flockGrid"></div>
-  <div style="margin-top:16px"><button class="btn primary" id="backBtn">← 回地圖繼續找</button></div>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn primary" id="backBtn">← 回地圖繼續找</button>
+    <button class="btn" id="cardsBtn">📮 明信片匣</button>
+  </div>
+  <!-- 🗺 地圖配色開關:CSS 調色改不掉 OSM 的路名與建築填色,不是每個人都喜歡 ⇒ 關得掉。
+       (也讓 save.pikminMap 這個鍵「有讀也有寫」——只讀不寫的鍵是無聲失敗,守門 #23 抓的就是這個。)-->
+  <label class="hint" style="display:block;margin-top:14px">
+    <input type="checkbox" id="mapColorSw"> 🗺 地圖用鮮豔配色(關掉就是原本的街道圖)
+  </label>
+</section>
+
+<!-- 📮 v14 明信片:帶回一隻羊就產一張(背景=剛剛那場 3D 戰鬥的畫面) -->
+<section class="panel" id="pcPanel">
+  <h1>📮 明信片</h1>
+  <div id="pcWrap"><canvas id="pcCanvas" width="900" height="1260"></canvas></div>
+  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn primary" id="pcShare">📤 分享</button>
+    <button class="btn" id="pcSave">⬇ 下載</button>
+    <button class="btn" id="pcBack">← 回地圖</button>
+  </div>
+  <!-- ⚠ 明信片匣預設關閉:存下來就等於在這支手機上留了一份「你去過哪些地方」的紀錄。
+       開場的隱私聲明說的是「位置不上傳」,沒說「不留存」——所以這件事要使用者自己開,
+       而且要講清楚存的是什麼、存在哪、怎麼清掉。 -->
+  <label class="safe" style="display:block;margin-top:16px;font-size:14px">
+    <input type="checkbox" id="pcKeep"> 把明信片存進「明信片匣」(預設不存)<br>
+    <span class="hint">存的是一張小縮圖 + 羊名 + 地點 + 日期,<b>只存在這支手機裡、不會上傳</b>,最多留最近 30 張。
+      不開的話,明信片只在這個畫面出現一次,離開就沒了(你隨時可以先下載)。</span>
+  </label>
+</section>
+
+<!-- 📮 明信片匣 -->
+<section class="panel" id="cardsPanel">
+  <h1>📮 明信片匣</h1>
+  <div class="hint" id="cardsHint"></div>
+  <div class="cards" id="cardsGrid"></div>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn primary" id="cardsBack">← 回羊圈</button>
+    <button class="btn" id="cardsClear">🗑 全部清掉</button>
+  </div>
 </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -541,6 +666,9 @@ function initMap() {
   map = L.map('map', { zoomControl: false }).setView([pos.lat, pos.lng], 17);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  /* 🗺 v14 ③ 皮克敏風配色:預設開,存檔裡明確關過才不套(同 mapGround 的 !== false 寫法,
+     否則舊使用者的存檔沒有這個鍵=undefined=falsy,等於「預設開」對他們無效)。 */
+  if (save.pikminMap !== false) $('map').classList.add('pikmin');
   youMarker = L.marker([pos.lat, pos.lng], { icon: L.divIcon({ className: '', html: '<div class="youMark">🧑‍🌾</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
 }
 function refreshSheep() {
@@ -550,6 +678,7 @@ function refreshSheep() {
   for (const s of list) {
     const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
     mk.bindTooltip(`${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`);
+    mk.on('click', () => openSheet(s));          // 📋 v14 ④:點羊 → 詳情面板(皮克敏點蘑菇那張)
     sheepMarkers.push(mk);
   }
   let near = list[0];
@@ -587,10 +716,66 @@ function onPos(lat, lng, acc) {
   const cell = PLACE.coarse(lat, lng).join(',');
   if (cell !== _placeCell) {
     _placeCell = cell;
-    PLACE.resolve(lat, lng).then(() => { if (PLACE.label) toast('🏞 這一帶是「' + PLACE.label + '」——等一下就在這裡救羊', 3200); });
+    PLACE.resolve(lat, lng).then(() => {
+      if (PLACE.label) toast('🏞 這一帶是「' + PLACE.label + '」——等一下就在這裡救羊', 3200);
+      paintPlaceChip();                       // 🏞 v14:toast 會消失,膠囊要常駐
+    });
   }
 }
 function toast(t, ms) { $('toast').textContent = t; $('toast').style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => $('toast').style.display = 'none', ms || 2600); }
+
+/* ═══ 🏞 v14 ①:地點膠囊 ═══
+   地名反查(Nominatim)v8 就在跑了,但只用一個 3.2 秒的 toast 講一次。
+   常駐膠囊之後,孩子隨時看得到「我在哪裡救羊」——這是皮克敏那顆「淡江大橋 ›」在做的事。
+   ★ 顯示一律寫明確的 display 值(#25 攔過的坑)。 */
+function paintPlaceChip() {
+  const el = $('placeChip');
+  if (!el) return;
+  if (save.noGeo || !PLACE.label) { el.style.display = 'none'; return; }
+  el.textContent = '🏞 ' + PLACE.label + ' ›';
+  el.style.display = 'inline-block';
+}
+$('placeChip').onclick = () => {
+  const s = PLACE.scene ? (SCENE_NAME[PLACE.scene] || PLACE.scene) : '草地';
+  toast(`🏞 「${PLACE.label}」→ 戰鬥背景用「${s}」` + (PLACE.forced ? '(你手動指定的)' : ''), 3400);
+};
+
+/* ═══ 🧭 v14 ②:指南針 ═══
+   ⚠ 三個「不做會出事」的點:
+     ① iOS 13+ 要在**使用者手勢裡**呼叫 DeviceOrientationEvent.requestPermission(),
+        所以 arm() 只能從 click handler 呼叫(startGPS / enterDemoMode 都是)。
+     ② 拿不到方位就**整顆藏起來** —— 一根不會動的針比沒有針更糟,孩子會拿它指路。
+     ③ iOS 的 webkitCompassHeading 已經是「北=0、順時針」;標準 alpha 是逆時針,要 360-alpha。
+        兩者搞混會做出一個**指反方向**的指南針,那比沒有更危險。 */
+const COMPASS = (() => {
+  let armed = false, alive = false, timer = null;
+  const show = (on) => { $('compass').style.display = on ? 'block' : 'none'; };
+  function onOrient(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
+    else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) h = (360 - e.alpha) % 360;
+    if (h == null) return;
+    if (!alive) { alive = true; clearTimeout(timer); show(true); }
+    // 針要指「北」:畫面轉 -h 就是把北轉回螢幕上方
+    $('compass').querySelector('.needle').style.transform = `rotate(${-h}deg)`;
+  }
+  function listen() {
+    addEventListener('deviceorientationabsolute', onOrient, true);
+    addEventListener('deviceorientation', onOrient, true);
+    // 3 秒內完全沒有事件 = 這台裝置沒有磁力計(桌機、多數平板)→ 永遠不顯示
+    timer = setTimeout(() => { if (!alive) show(false); }, 3000);
+  }
+  return {
+    arm() {
+      if (armed) return; armed = true;
+      const D = window.DeviceOrientationEvent;
+      if (!D) return;                                   // 不支援 → 不顯示,不吵人
+      if (typeof D.requestPermission === 'function') {  // iOS:必須在手勢內
+        D.requestPermission().then(st => { if (st === 'granted') listen(); }).catch(() => {});
+      } else listen();
+    },
+  };
+})();
 
 /* ── 開場 ── */
 $('agree').onchange = e => { $('startBtn').disabled = $('demoBtn').disabled = !e.target.checked; };
@@ -653,6 +838,7 @@ function startGPS() {
   /* 🔒 https 之外(http、file://)瀏覽器一律不給定位 —— 這種情況舊訊息也會誤報成「權限」。 */
   if (!window.isSecureContext) { geoSay('🔒 這個網址不是 https,瀏覽器規定<b>不給定位</b>。請改用 https 的網址,或按下面的 🧪 客廳測試模式。'); showGeoOut(true); return; }
   SFX.unlock();                                       // 在使用者手勢裡解鎖音訊(開場音樂才播得出來)
+  COMPASS.arm();                                      // 🧭 同理:iOS 的方位權限也只能在手勢裡要
   if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
   gotFix = false; geoNote = ''; geoT0 = Date.now();
 
@@ -724,7 +910,8 @@ function enterDemoMode() {
   toast('🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 4200);
 }
 $('demoBtn').onclick = enterDemoMode;
-$('geoDemoBtn').onclick = () => { SFX.unlock(); enterDemoMode(); };   // 等待框裡的出口鈕(0731 使用者拍板)
+$('geoDemoBtn').onclick = () => { SFX.unlock(); COMPASS.arm(); enterDemoMode(); };   // 等待框裡的出口鈕(0731 使用者拍板)
+$('demoBtn').addEventListener('click', () => COMPASS.arm());          // 🧭 客廳模式也給指南針(有磁力計的平板用得到)
 /* 客廳練習:走向指定的羊(預設最近那隻;按 ⚔️ 就鎖定「有獸的」那隻,不必碰 25% 機率) */
 let demoTarget = null;
 const stepTo = n => {
@@ -770,6 +957,208 @@ $('locBtn').onclick = () => {
 let target = null, needleT = 0, needleDir = 1, trust = 0, raf = null;
 let phase = 'catch', bHp = 0, tele = false, teleUntil = 0, nextTele = 0, spd = 1.35;
 $('nearBar').onclick = () => { target = window._near; if (!target) return; startCatch(); };
+
+/* ═══ 📋 v14 ④:挑戰詳情面板 ═══
+   皮克敏點蘑菇會從底部彈出「名稱 / 還有多久 / 幾個人在打 / 參加 / 前往這裡」。
+   我們的對應物:羊名、被哪隻獸叼住、距離幾公尺、金毛羊、以及兩顆行動鈕。
+   ★ 「帶回這隻羊」必須沿用 nearBar 的同一條路(target = 那隻羊 → startCatch),
+     否則會出現「面板能抓、按鈕不能抓」兩套規則,以後改一邊忘一邊。
+   ★ 25 公尺是**遊戲規則**不是 UI 細節:太遠時鈕要 disabled 並講清楚還差幾公尺,
+     不可以讓孩子按了沒反應(那會被當成壞掉,v1 就是這樣被誤會兩天)。 */
+let sheetTarget = null;
+function openSheet(s) {
+  sheetTarget = s;
+  const d = Math.round(distM(pos, s));
+  $('shTitle').textContent = `${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e} ${s.name}`;
+  const near = d <= 25;
+  $('shInfo').innerHTML =
+    (s.beast ? `⚔️ <b>被${s.beast.n}叼住了</b> —— 要先趕走獸才帶得回來。<br>` : '') +
+    (s.gold ? '✨ <b>金毛羊</b>(稀有)<br>' : '') +
+    `📏 距離你 <b>${d}</b> 公尺` +
+    (near ? ' —— <b>夠近了,可以帶牠回家!</b>' : ` —— 還要再走 <b>${d - 25}</b> 公尺才抓得到(要 25 公尺內)。`);
+  $('shCatch').disabled = !near;
+  $('shCatch').style.opacity = near ? '1' : '.45';
+  $('sheet').style.display = 'block';
+  requestAnimationFrame(() => $('sheet').classList.add('on'));   // 先 display 再加 class 才有滑上來的動畫
+}
+function closeSheet() {
+  $('sheet').classList.remove('on');
+  setTimeout(() => { $('sheet').style.display = 'none'; }, 220);
+}
+$('shClose').onclick = closeSheet;
+$('shGo').onclick = () => { if (sheetTarget && map) map.panTo([sheetTarget.lat, sheetTarget.lng]); closeSheet(); };
+$('shCatch').onclick = () => {
+  if (!sheetTarget || distM(pos, sheetTarget) > 25) return;
+  closeSheet(); target = sheetTarget; startCatch();
+};
+
+/* ═══ 📮 v14 ⑤:明信片 ═══
+   皮克敏帶回蘑菇會給你一張明信片。我們的版本:帶回一隻羊 → 一張可下載/分享的 PNG,
+   背景就是**剛剛那場戰鬥的 3D 畫面**(含當地的地標背景)。
+   ★ 零上傳:整張圖在 canvas 上合成,不經過任何伺服器。
+   ★ 存檔是**選配、預設關閉**:存下來等於在這支手機留一份「你去過哪些地方」的紀錄,
+     而開場的隱私聲明只承諾「位置不上傳」,沒承諾「不留存」——所以要使用者自己開。 */
+const POSTCARD = (() => {
+  const W = 900, H = 1260, PHOTO_H = 760;
+  let lastBlob = null, lastName = '';
+
+  /* 逐字斷行:中文沒有空格,不能用 split(' ')。measureText 一個字一個字疊。 */
+  function wrap(ctx, text, x, y, maxW, lh) {
+    let line = '';
+    for (const ch of text) {
+      if (ch === '\n' || ctx.measureText(line + ch).width > maxW) {
+        ctx.fillText(line, x, y); y += lh; line = (ch === '\n') ? '' : ch;
+      } else line += ch;
+    }
+    if (line) { ctx.fillText(line, x, y); y += lh; }
+    return y;
+  }
+
+  function draw(info) {
+    const cv = $('pcCanvas'), ctx = cv.getContext('2d');
+    cv.width = W; cv.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    /* ① 底:與 #b3d 相同的天空→草地漸層。3D 快照是透明背景(renderer alpha:true),
+          先鋪這層,快照疊上去看起來就跟孩子剛剛在畫面上看到的一樣。 */
+    const g = ctx.createLinearGradient(0, 0, 0, PHOTO_H);
+    g.addColorStop(0, '#bfe6f7'); g.addColorStop(1, '#e8f6e2');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, PHOTO_H);
+
+    /* ② 3D 快照(cover 裁切,不變形)。沒有快照就維持漸層 + 一隻大 emoji,不留白。 */
+    if (info.img) {
+      const s = Math.max(W / info.img.width, PHOTO_H / info.img.height);
+      const dw = info.img.width * s, dh = info.img.height * s;
+      ctx.drawImage(info.img, (W - dw) / 2, (PHOTO_H - dh) / 2, dw, dh);
+    } else {
+      ctx.font = '260px serif'; ctx.textAlign = 'center';
+      ctx.fillText(info.emoji || '🐑', W / 2, PHOTO_H / 2 + 90);
+      ctx.textAlign = 'left';
+    }
+
+    /* ③ 下半:紙卡。★ 文字**不壓在照片上** —— 投影/手機上「字擋臉」是這系列退過件的老問題。 */
+    ctx.fillStyle = '#fbfaf4'; ctx.fillRect(0, PHOTO_H, W, H - PHOTO_H);
+    ctx.fillStyle = '#e0c56a'; ctx.fillRect(0, PHOTO_H, W, 8);
+
+    let y = PHOTO_H + 78;
+    ctx.fillStyle = '#2f4034';
+    ctx.font = '800 54px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    ctx.fillText(`${info.emoji} ${info.name}`, 56, y);
+    y += 54;
+
+    ctx.font = '700 30px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    ctx.fillStyle = '#5b6b5f';
+    if (info.beast) { ctx.fillText(`⚔️ 從${info.beast}口中救回來的`, 56, y); y += 44; }
+    if (info.gold) { ctx.fillText('✨ 金毛羊(稀有)', 56, y); y += 44; }
+    ctx.fillText(`${info.place ? '🏞 ' + info.place + '　' : ''}📅 ${info.date}`, 56, y);
+    y += 56;
+
+    /* 金句:★ 左邊那條金線要**跟著文字長度收尾**。第一版寫死畫到 H-96,
+       短金句時就拖出一條長長的空線(截圖驗收抓到的)。⇒ 先量出文字結束的 y 再回頭畫線。 */
+    ctx.font = '600 29px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    ctx.fillStyle = '#3d5142';
+    const endY = wrap(ctx, info.verse, 78, y + 14, W - 140, 44);
+    ctx.strokeStyle = '#e0c56a'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(56, y - 18); ctx.lineTo(56, endY - 22); ctx.stroke();
+
+    ctx.font = '700 24px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    ctx.fillStyle = '#8a9a8e';
+    ctx.fillText('🐑 尋羊記', 56, H - 42);
+    return cv;
+  }
+
+  /* dataURL → Image,一定要等 decode 完才畫,否則 drawImage 畫的是空的 */
+  const toImg = (url) => new Promise((res) => {
+    if (!url) return res(null);
+    const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = url;
+  });
+
+  async function show(info) {
+    info.img = await toImg(info.snap);
+    const cv = draw(info);
+    lastName = `尋羊記-${info.name}-${info.date}`.replace(/[\\/:*?"<>|]/g, '');
+    lastBlob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    if (save.cardsKeep) keep(cv, info);
+    $('pcKeep').checked = !!save.cardsKeep;
+    $('pcPanel').classList.add('on');
+  }
+
+  /* 明信片匣:只存**小縮圖**+一行字。存整張 PNG 會很快把 localStorage 5MB 撐爆
+     (一張 900×1260 的 PNG 就有幾百 KB),而且撐爆時 setItem 是**丟例外**不是靜默失敗,
+     沒包 try 會把整個存檔寫入打斷 —— persist() 本來就有包,這裡再自己保險一次。 */
+  function keep(cv, info) {
+    try {
+      const t = document.createElement('canvas');
+      t.width = 220; t.height = Math.round(220 * H / W);
+      t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
+      save.cards = save.cards || [];
+      save.cards.unshift({ th: t.toDataURL('image/jpeg', 0.62), n: info.name, e: info.emoji,
+        p: info.place || '', d: info.date, b: info.beast || null, g: !!info.gold });
+      save.cards = save.cards.slice(0, 30);              // 只留最近 30 張
+      persist();
+    } catch (e) { toast('明信片匣存不下了(手機空間滿),這張沒存起來——你可以先下載', 4200); }
+  }
+
+  return {
+    show,
+    blob: () => lastBlob,
+    name: () => lastName,
+    draw,                                                 // 給驗收腳本用
+  };
+})();
+
+$('pcSave').onclick = () => {
+  const b = POSTCARD.blob(); if (!b) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = POSTCARD.name() + '.png';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('⬇ 明信片下載好了', 2400);
+};
+$('pcShare').onclick = async () => {
+  const b = POSTCARD.blob(); if (!b) return;
+  const f = new File([b], POSTCARD.name() + '.png', { type: 'image/png' });
+  /* ⚠ 一定要先問 canShare({files}) —— 桌機 Chrome 有 navigator.share 卻**不能傳檔**,
+     直接 share 會丟錯,使用者只看到「按了沒反應」。不能傳就退成下載。 */
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    try { await navigator.share({ files: [f], title: '尋羊記' }); } catch (e) { /* 使用者取消 */ }
+  } else { $('pcSave').click(); toast('這台裝置不能直接分享圖片,已改成下載', 3200); }
+};
+/* 明信片開著的時候不要用 toast 蓋在卡片上(z-index 40 > 面板 30);存起來,關掉卡片再講。 */
+let _afterCard = null;
+function afterCard(msg, ms) { _afterCard = [msg, ms]; }
+$('pcBack').onclick = () => {
+  $('pcPanel').classList.remove('on');
+  if (_afterCard) { toast(_afterCard[0], _afterCard[1]); _afterCard = null; }
+};
+$('pcKeep').onchange = (e) => {
+  save.cardsKeep = !!e.target.checked; persist();
+  toast(save.cardsKeep ? '📮 之後的明信片會存進明信片匣(只存在這支手機)' : '📮 不再存明信片', 3000);
+};
+
+/* 📮 明信片匣 */
+function openCards() {
+  const list = save.cards || [];
+  $('cardsHint').innerHTML = list.length
+    ? `共 ${list.length} 張(只存在這支手機、沒有上傳;最多留最近 30 張)。`
+    : '還沒有明信片。帶回一隻羊,在明信片畫面把「存進明信片匣」打勾就會留下來。';
+  $('cardsGrid').innerHTML = list.map(c =>
+    `<figure><img alt="${c.e} ${c.n}" src="${c.th}"><figcaption>${c.e} ${c.n}<br>${c.p ? c.p + '<br>' : ''}${c.d}${c.b ? '<br>⚔️ ' + c.b : ''}</figcaption></figure>`).join('');
+  $('flockPanel').classList.remove('on');
+  $('cardsPanel').classList.add('on');
+}
+$('cardsBtn').onclick = openCards;
+/* 🗺 地圖配色開關(在 📖 羊圈裡)。★ 顯示/隱藏一律用明確值,這裡是加/移 class,同樣不靠清空 inline。 */
+$('mapColorSw').checked = save.pikminMap !== false;
+$('mapColorSw').onchange = (e) => {
+  save.pikminMap = !!e.target.checked; persist();
+  $('map').classList.toggle('pikmin', save.pikminMap);
+  toast(save.pikminMap ? '🗺 地圖改成鮮豔配色' : '🗺 地圖改回原本的街道圖', 2400);
+};
+$('cardsBack').onclick = () => { $('cardsPanel').classList.remove('on'); openFlock(); };
+$('cardsClear').onclick = () => {
+  if (!(save.cards || []).length) return;
+  save.cards = []; persist(); openCards(); toast('🗑 明信片匣清空了', 2400);
+};
 function newZone(zw) {
   const zx = 18 + Math.random() * (100 - zw - 36);
   $('zone').style.left = zx + '%'; $('zone').style.width = zw + '%';
@@ -917,15 +1306,31 @@ function caught() {
   else TTS.speakScripture('找著了,就歡歡喜喜地扛在肩上,回到家裡。路加福音十五章五節。', { ref: '路 15:5' });   // 和合本沒有「他」
   $('sheepBig').style.transform = 'scale(1.5) translateY(-18px)';
   setTimeout(() => {
+    /* 📮 v14:明信片的背景 = 剛剛這場戰鬥的畫面。
+       ⚠ 順序不能換:**一定要在 dispose 之前截**(dispose 會 ren.dispose() + 移除 canvas,
+         之後再截就是 null)。而且 snapshot() 內部是「同步 render 再 toDataURL」,
+         不能改成 await 之後再截 —— WebGL 的 drawing buffer 隔一個 tick 就空了。 */
+    const snap = B3D.snapshot();
     B3D.dispose();                         // 收工:停 RAF + dispose,手機不要一直燒 GPU
     $('catchPanel').classList.remove('on');
     refreshSheep();
+    POSTCARD.show({
+      snap, name: target.name, emoji: target.kind.e, gold: target.gold,
+      beast: target.beast ? target.beast.n : null,
+      place: (save.noGeo ? '' : PLACE.label) || '',
+      date: new Date().toLocaleDateString('zh-TW'),
+      verse: target.beast
+        ? '「耶和華救我脫離獅子和熊的爪。」——撒母耳記上 17:37\n不是靠你的力氣,是神與你同在。'
+        : '「找著了,就歡歡喜喜地扛在肩上,回到家裡。」——路加福音 15:5',
+    });
     if (n === 100) {
       openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!';
       TTS.speakScripture('我失去的羊已經找著了,你們和我一同歡喜吧!路加福音十五章六節。一百隻,一隻也不少。', { ref: '路 15:6' });
     }
-    else if (n === 1) toast('第一隻!羊圈(📖)裡看得到牠', 3000);
-    else if (target.gold) toast('✨ 金毛羊入圈!好眼光!', 3000);
+    /* ⚠ 截圖驗收抓到:toast 是 z-index 40、明信片面板是 30 ⇒ 這兩句會**蓋在明信片正中央**。
+       改成存起來,等使用者關掉明信片回地圖時才講(那時他才需要這個指路)。 */
+    else if (n === 1) afterCard('第一隻!羊圈(📖)裡看得到牠', 3000);
+    else if (target.gold) afterCard('✨ 金毛羊入圈!好眼光!', 3000);
   }, 1400);
 }
 $('fleeBtn').onclick = () => { cancelAnimationFrame(raf); tele = false; setTele(false); phase = 'catch'; B3D.dispose(); $('catchPanel').classList.remove('on'); };
@@ -1975,6 +2380,18 @@ const B3D = (() => {
     busy() { return ready && lock > 0; },
     mount, resize,
     photoDemo(on) { PHOTO_DEMO = !!on; },        // 📷 客廳示範用假圖的開關(見 buildPhotoBackdrop)
+    /* 📮 v14:給明信片用的畫面快照(回傳 dataURL,沒 3D 就 null)。
+       ⚠⚠ WebGL 的坑,本檔 probe() 的註解早就記著:renderer **沒開 preserveDrawingBuffer**,
+         drawing buffer 在每次 present 之後就被清掉 —— 隔一個 tick 再 toDataURL 會拿到**空白圖**。
+         唯一可靠的做法:在**同一個同步區塊**裡「先 render 再 toDataURL」,
+         中間不可以 await、不可以跨 requestAnimationFrame。
+       ★ 為什麼不乾脆開 preserveDrawingBuffer:那會讓每一幀都多一份保留成本,
+         手機整場戰鬥都在付這個錢,只為了最後截一張圖,不划算。 */
+    snapshot() {
+      if (!ready || failed || !ren || !scene || !cam) return null;
+      try { ren.render(scene, cam); return ren.domElement.toDataURL('image/png'); }
+      catch (e) { return null; }
+    },
     unmount() { host && (host.style.display = 'none'); },
     /* 🦯 甩杖擊退:右臂+杖揮下 → 命中白光環 → 獸後仰退開(街霸式擊退) */
     strike(hit) {
