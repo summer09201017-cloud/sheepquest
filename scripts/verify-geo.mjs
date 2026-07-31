@@ -57,14 +57,21 @@ function stub(mode) {
   })()`
 }
 
-/* 讀畫面上「玩家看得到的事實」——不是讀內部變數,避免自我驗證 */
-const snap = (p) => p.evaluate(() => ({
+/* 讀畫面上「玩家看得到的事實」——不是讀內部變數,避免自我驗證。
+   ★ 元素不存在要回 false,不可以讓 getComputedStyle(null) 直接爆掉:
+     否則「拿舊版跑一次確認新測試會 FAIL」時得到的是一個崩潰,不是一條看得懂的紅燈。 */
+const snap = (p) => p.evaluate(() => {
+  const shown = (id) => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== "none" }
+  return ({
   intro: document.getElementById("introPanel").classList.contains("on"),
   geoTxt: (document.getElementById("geoStatus").innerText || "").replace(/\s+/g, " ").trim(),
-  geoShown: getComputedStyle(document.getElementById("geoStatus")).display !== "none",
-  accShown: getComputedStyle(document.getElementById("accChip")).display !== "none",
+  geoShown: shown("geoStatus"),
+  accShown: shown("accChip"),
   acc: document.getElementById("accVal").textContent,
-}))
+  /* 🧪 0731:等待框下面那顆「改用客廳測試模式」出口鈕 */
+  outShown: shown("geoDemoOut"),
+  walkShown: shown("walkBtn"),
+})})
 
 async function open(mode) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
@@ -151,6 +158,38 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_EXE }
   const s = await snap(page)
   check("E1 定位很快時直接開場、等待框收起來", !s.intro && !s.geoShown && s.acc === "9")
   check("E2 無 pageerror", errs.length === 0, errs.slice(0, 2).join(" | "))
+  await page.close()
+}
+
+/* ══ F. 🧪 出口鈕(v13,使用者拍板):等定位的時候可以直接改用客廳測試模式 ══
+   為什麼要有這一段:v12 只在**第 40 秒**用文字提「可以先用測試模式」,而桌機/室內的人
+   那 40 秒完全是白等的。★ 三項都**真的去 click 那顆鈕**,不是用 evaluate 呼叫 enterDemoMode()
+   —— 這一系列最貴的 bug(「帶回這隻羊」鈕上線兩天從來沒出現過)就是敗在「只 evaluate 不 click」。*/
+{
+  const { page, errs } = await open("slow")
+  await sleep(1500)
+  const a = await snap(page)
+  check("F1 ★等待一開始(1.5 秒)出口鈕就看得見,不必等到第 40 秒",
+    a.intro && /正在定位/.test(a.geoTxt) && a.outShown)
+
+  /* ← 真的按下去(不可改用 evaluate 呼叫 enterDemoMode:那樣就算按鈕根本沒顯示也會「通過」)。
+       ★ 短 timeout + catch:按不到就往下讓 F2 判紅,不要整支崩在 30 秒的預設等待上
+         —— 拿舊版跑迴歸時走的正是這條路。 */
+  const clicked = await page.locator("#geoDemoBtn").click({ timeout: 3000 }).then(() => true).catch(() => false)
+  if (!clicked) console.log("   (按不到 #geoDemoBtn —— 舊版沒有這顆鈕)")
+  await sleep(600)
+  const b = await snap(page)
+  check("F2 按下去真的進到測試模式:面板關、走路鈕出現、等待框與出口鈕都收起來",
+    !b.intro && b.walkShown && !b.geoShown && !b.outShown)
+
+  /* ★ 這一項才是「加一顆鈕」真正會咬人的地方:watchPosition 還在跑,
+       stub 設定第 20 秒才回一筆 fix。沒 clearWatch 的話 beginPlay 會把人瞬移到真實座標
+       (畫面上的證據=accChip 冒出「±12m」)。 */
+  await sleep(20500)
+  const c = await snap(page)
+  check("F3 ★20 秒後晚到的 GPS fix 不會把客廳玩家瞬移走(切模式前有 clearWatch)",
+    !c.intro && !c.accShown && c.acc !== "12", `accChip ${c.accShown ? "冒出來了 ±" + c.acc + "m" : "維持隱藏 🟢"}`)
+  check("F4 無 pageerror", errs.length === 0, errs.slice(0, 2).join(" | "))
   await page.close()
 }
 

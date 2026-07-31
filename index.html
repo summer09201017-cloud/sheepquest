@@ -126,6 +126,14 @@
        中間那 10~45 秒的等待**完全沒畫面** → 使用者以為壞了就走了。
        ★ 顯示一律寫明確的 display 值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑)。-->
   <div id="geoStatus" style="display:none;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.10);font-size:15px;line-height:1.75"></div>
+  <!-- 🧪 0731 使用者拍板:等待框裡直接放一顆「改用客廳測試模式」的出口鈕。
+       為什麼不偵測「這是不是桌機」自動切:偵測 UA 會把有 GPS 的平板誤判成桌機,
+       反而把真的能玩 GPS 的人踢去測試模式。給一顆鈕,讓人自己決定,永遠不會誤判。
+       ★ 這顆鈕**故意放在 #geoStatus 外面**:那個框每秒被 innerHTML 重寫一次,
+         按鈕若長在裡面,手指按下去到放開的那一瞬間節點剛好被換掉 = 這一下點不到。 -->
+  <div id="geoDemoOut" style="display:none;margin-top:8px">
+    <button class="btn" id="geoDemoBtn">🧪 改用客廳測試模式(不用等定位)</button>
+  </div>
   <!-- ⚠ 0730 這段文案必須跟著功能改成實話:加了「背景跟著地點變」之後,會送出粗略位置去查地名。
        原本寫「你的位置絕不上傳」,不改就是對家長說謊。★ 改文案與加開關是這個功能的必要條件,不是選配。-->
   <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
@@ -148,7 +156,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v9(2026-07-30 🗺 腳下可以鋪真實地圖 + 📷 可放自己拍的照片當背景;v8 的 🧸 tsum 圓萌動物與 🧑‍🌾 牧人樣子可選都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v13(2026-07-31 🧪 等定位的時候可以直接改用「客廳測試模式」,不必乾等;v12 的 📍 定位會一直等到收到訊號、會顯示還差多少公尺都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -606,12 +614,23 @@ $('agree').onchange = e => { $('startBtn').disabled = $('demoBtn').disabled = !e
    ⚠ `beginPlay` 用 gotFix 當鎖:快取位置與 GPS fix 會**兩邊都回來**,開場只能跑一次。 */
 function geoSay(html) { const el = $('geoStatus'); el.innerHTML = html; el.style.display = 'block'; }
 function stopGeoTick() { if (geoTick) { clearInterval(geoTick); geoTick = null; } }
+/* 🧪 等待/失敗時的出口鈕。★ 一律寫明確的 display 值,不可用 ''
+   (#25 css-hidden-toggle-guard 攔過的坑:CSS 藏的元素清掉 inline 樣式還原不了)。 */
+function showGeoOut(on) { $('geoDemoOut').style.display = on ? 'block' : 'none'; }
 
 function beginPlay(lat, lng, acc) {
+  /* 🧪 v13:已經在客廳測試模式了就整個不理會定位回來的座標。
+     ⚠ 光靠 enterDemoMode 裡的 clearWatch + gotFix=true **擋不住**,兩個理由(閘門 F3 抓到的):
+       ① 下面那行早退路徑在 gotFix 為真時**還是會** onPos(真實座標) ⇒ 人被瞬移走;
+       ② 「快取位置搶開場」那支 getCurrentPosition **沒有任何取消方法** —— clearWatch 管不到它,
+          按鈕按得夠快就會在切進測試模式之後才回來。
+     ⇒ 唯一可靠的擋法是在這裡看 demo 旗標。 */
+  if (demo) return;
   if (gotFix) { onPos(lat, lng, acc); return; }      // 第二筆以後只更新位置,不重複開場
   gotFix = true;
   stopGeoTick();
   $('geoStatus').style.display = 'none';
+  showGeoOut(false);                                 // 定位到了就把出口鈕收起來
   $('introPanel').classList.remove('on');
   onPos(lat, lng, acc);
   SFX.startMusic('walk');                            // 🎵 出發就有平靜的牧歌
@@ -630,9 +649,9 @@ function geoErrHtml(code) {
 }
 
 function startGPS() {
-  if (!navigator.geolocation) { geoSay('這支手機的瀏覽器不支援定位,先用 🧪 客廳測試模式吧。'); return; }
+  if (!navigator.geolocation) { geoSay('這支手機的瀏覽器不支援定位,用下面的 🧪 客廳測試模式一樣能玩。'); showGeoOut(true); return; }
   /* 🔒 https 之外(http、file://)瀏覽器一律不給定位 —— 這種情況舊訊息也會誤報成「權限」。 */
-  if (!window.isSecureContext) { geoSay('🔒 這個網址不是 https,瀏覽器規定<b>不給定位</b>。請改用 https 的網址,或先用 🧪 客廳測試模式。'); return; }
+  if (!window.isSecureContext) { geoSay('🔒 這個網址不是 https,瀏覽器規定<b>不給定位</b>。請改用 https 的網址,或按下面的 🧪 客廳測試模式。'); showGeoOut(true); return; }
   SFX.unlock();                                       // 在使用者手勢裡解鎖音訊(開場音樂才播得出來)
   if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
   gotFix = false; geoNote = ''; geoT0 = Date.now();
@@ -641,10 +660,13 @@ function startGPS() {
     const s = Math.round((Date.now() - geoT0) / 1000);
     let tip = '第一次在戶外用,手機要重新開 GPS,通常 5~30 秒。';
     if (s >= 15) tip = '👉 走到<b>看得到天空</b>的地方(騎樓、室內、車內都收不到)。';
-    if (s >= 40) tip = '還是拿不到?先按 🧪 客廳測試模式一樣能玩;走到空曠處再回來按這顆鈕。';
+    /* 0731:出口鈕從第 0 秒就在下面,所以 40 秒這句改成「指下面那顆鈕」,
+       不再自己描述一顆看不到的按鈕(舊版那句在畫面上找不到對應的東西)。 */
+    if (s >= 40) tip = '還是拿不到?<b>用電腦開的話本來就等不到</b>(桌機沒有 GPS 晶片)——按下面那顆鈕改用測試模式,一樣能玩。';
     geoSay(`⏳ <b>正在定位…${s} 秒</b>(不用重按)<br>${tip}` + (geoNote ? `<br>${geoNote}` : ''));
   };
   stopGeoTick(); tick(); geoTick = setInterval(tick, 1000);
+  showGeoOut(true);            // 🧪 從第 0 秒就給出口:室內/桌機的人不必先等 40 秒才知道有別條路
 
   /* ① 主力:watchPosition,沒有 timeout,拿到第一筆就開場 */
   watching = navigator.geolocation.watchPosition(
@@ -682,7 +704,15 @@ function startGPS() {
   } catch (e) { /* 不支援 Permissions API 就算了,上面的 code 1 分支照樣會接到 */ }
 }
 $('startBtn').onclick = startGPS;
-$('demoBtn').onclick = () => {
+function enterDemoMode() {
+  /* ⚠ 從等待畫面切進來時,watchPosition 還在跑 —— 不關掉的話,晚到的那筆 GPS fix
+     會呼叫 beginPlay → onPos(真實座標),把已經在客廳玩的人整個瞬移走。
+     這是「加一顆鈕」唯一會咬人的地方。 */
+  if (watching !== null) { navigator.geolocation.clearWatch(watching); watching = null; }
+  stopGeoTick();
+  gotFix = true;                                  // 擋掉任何還在路上的 callback
+  $('geoStatus').style.display = 'none';
+  showGeoOut(false);
   demo = true;
   SFX.startMusic('walk');   // 🎵 同上:測試模式也要有音樂
   $('introPanel').classList.remove('on');
@@ -692,7 +722,9 @@ $('demoBtn').onclick = () => {
   $('sceneSel').style.display = 'inline-block';   // 🏞 示範用的換背景下拉
   onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕虛擬走路
   toast('🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 4200);
-};
+}
+$('demoBtn').onclick = enterDemoMode;
+$('geoDemoBtn').onclick = () => { SFX.unlock(); enterDemoMode(); };   // 等待框裡的出口鈕(0731 使用者拍板)
 /* 客廳練習:走向指定的羊(預設最近那隻;按 ⚔️ 就鎖定「有獸的」那隻,不必碰 25% 機率) */
 let demoTarget = null;
 const stepTo = n => {
