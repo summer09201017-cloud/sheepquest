@@ -101,6 +101,12 @@ await sleep(2500)
 
 /* ══ ③ 地圖底圖(v16:換成 CARTO Voyager,額外的 filter 改成預設關)══ */
 {
+  /* ⚠ 一定要等真的有一張圖磚進 DOM 再取樣 —— 否則 img.src 是空字串,這一項會**間歇假紅**。
+       實錄:剛部署完第一次對線上跑就 14/17,重跑兩次都 17/17 = 測試自己不穩,不是站壞了。
+       (同一個病今天已經在「盲按時機條」那裡踩過一次:不穩的閘門比沒有閘門更糟。) */
+  const tileOk = await page.waitForSelector('img.leaflet-tile[src*="cartocdn"]', { timeout: 20000 })
+    .then(() => true).catch(() => false)
+  if (!tileOk) console.log('   (20 秒內沒有任何 CARTO 圖磚進 DOM —— 網路慢或底圖真的沒換)')
   const s = await page.evaluate(() => {
     const m = document.getElementById("map")
     const img = m.querySelector("img.leaflet-tile")
