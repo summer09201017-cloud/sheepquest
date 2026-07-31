@@ -73,8 +73,9 @@ const snap = (p) => p.evaluate(() => {
   walkShown: shown("walkBtn"),
 })})
 
-async function open(mode) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+async function open(mode, opts = {}) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    ...(opts.ua ? { userAgent: opts.ua } : {}) })
   const errs = []
   page.on("pageerror", (e) => errs.push("pageerror: " + e.message))
   await page.addInitScript(stub(mode))
@@ -190,6 +191,55 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_EXE }
   check("F3 ★20 秒後晚到的 GPS fix 不會把客廳玩家瞬移走(切模式前有 clearWatch)",
     !c.intro && !c.accShown && c.acc !== "12", `accChip ${c.accShown ? "冒出來了 ±" + c.acc + "m" : "維持隱藏 🟢"}`)
   check("F4 無 pageerror", errs.length === 0, errs.slice(0, 2).join(" | "))
+  await page.close()
+}
+
+/* ══ G. 🧩 App 內建瀏覽器(LINE)——2026-07-31 使用者第二次實測回報 ══
+   教會的連結都走 LINE 發。從 LINE 訊息點進來 = LINE 的 WebView,常直接回 code 1,
+   而使用者在手機設定裡**怎麼調都沒用**。舊訊息卻教他去改 Safari/Chrome 設定
+   = 和 v12 那個 bug 一樣「把人導向錯的解法」,只是換了場景。
+   ⚠ 這一段同時要防**誤判**:一般瀏覽器絕不可以看到「換瀏覽器」那套字。 */
+const UA_LINE = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Chrome/126.0.0.0 Mobile Safari/537.36 Line/14.5.2/IAB'
+const UA_PLAIN = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Chrome/126.0.0.0 Mobile Safari/537.36'
+{
+  const { page } = await open('denied', { ua: UA_LINE })
+  await sleep(1500)
+  /* ★ 元素不存在要回空字串,不可以讓 getComputedStyle(null) 爆掉 ——
+       「拿舊版跑一次確認新測試會 FAIL」時,要得到看得懂的紅燈而不是一個崩潰。
+       (同一個坑在 F 段的 snap() 已經修過一次,這裡第一版又踩了。) */
+  const s = await page.evaluate(() => {
+    const el = document.getElementById('inAppWarn')
+    return {
+      geo: (document.getElementById('geoStatus').innerText || '').replace(/\s+/g, ' '),
+      warn: el && getComputedStyle(el).display !== 'none' ? el.innerText.replace(/\s+/g, ' ') : '',
+    }
+  })
+  check('G1 ★LINE 內建瀏覽器被拒時,講的是「換瀏覽器開」而不是叫他改設定',
+    /LINE/.test(s.geo) && /其他瀏覽器|外部瀏覽器/.test(s.geo) && !/設定 → Safari/.test(s.geo),
+    s.geo.slice(0, 52))
+  check('G2 ★而且**開場就先提醒**,不必等他按下去失敗',
+    /LINE/.test(s.warn) && /瀏覽器/.test(s.warn), s.warn.slice(0, 46))
+  await page.close()
+}
+{
+  const { page } = await open('denied', { ua: UA_PLAIN })
+  await sleep(1500)
+  const s = await page.evaluate(() => {
+    const el = document.getElementById('inAppWarn')
+    return {
+      geo: (document.getElementById('geoStatus').innerText || '').replace(/\s+/g, ' '),
+      warnShown: !!el && getComputedStyle(el).display !== 'none',
+    }
+  })
+  check('G3 一般瀏覽器**不可以**被誤判成內建瀏覽器(誤判會把好人趕去換瀏覽器)',
+    !s.warnShown && !/LINE/.test(s.geo) && /權限被拒絕/.test(s.geo))
+  check('G4 Android 裝置上,Android 的做法排在 iPhone 前面(別讓他先讀一段沒用的 iPhone 教學)',
+    s.geo.indexOf('Android') > 0 && s.geo.indexOf('Android') < s.geo.indexOf('iPhone'),
+    `Android@${s.geo.indexOf('Android')} / iPhone@${s.geo.indexOf('iPhone')}`)
+  check('G5 而且有教「系統定位總開關」與「瀏覽器 App 的定位權限」(舊版只講網站權限)',
+    /設定 → 位置/.test(s.geo) && /應用程式/.test(s.geo))
   await page.close()
 }
 

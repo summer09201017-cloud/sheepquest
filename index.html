@@ -209,6 +209,9 @@
     <button class="btn primary" id="startBtn" disabled>📍 用 GPS 開始找羊</button>
     <button class="btn" id="demoBtn" disabled>🧪 客廳測試模式(不用出門)</button>
   </div>
+  <!-- 🧩 v15:從 LINE/FB 內建瀏覽器開進來的,**先講**別等他按下去失敗才講。
+       教會的連結都走 LINE 發,這是最多人會遇到的路徑。 -->
+  <div id="inAppWarn" class="safe" style="display:none;margin-top:12px"></div>
   <!-- 📍 定位狀態(0731 修 bug 新增):舊版按下去只有「成功」或「跳一行失敗 toast」兩種結局,
        中間那 10~45 秒的等待**完全沒畫面** → 使用者以為壞了就走了。
        ★ 顯示一律寫明確的 display 值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑)。-->
@@ -243,7 +246,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v14(2026-07-31 🏞 地點膠囊 + 🧭 指南針 + 🗺 地圖變鮮豔 + 📋 點羊看詳情 + 📮 帶回羊會給一張明信片;v13 的 🧪「等定位時可直接改用客廳測試模式」也在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v15(2026-07-31 🧩 從 LINE 點進來會先提醒「LINE 的內建瀏覽器不給定位,請用其他瀏覽器開啟」;v14 的 🏞 地點膠囊 + 🧭 指南針 + 📋 點羊看詳情 + 📮 明信片都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -822,12 +825,55 @@ function beginPlay(lat, lng, acc) {
   toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
 }
 
+/* 🧩 v15:是不是「App 內建瀏覽器」(LINE / FB / IG …)。
+   由來(2026-07-31 使用者實測回報,同一個 bug 的第二輪):
+     教會的連結都是走 **LINE** 發給家長與孩子的。從 LINE 訊息點進來 = LINE 自己的 WebView,
+     它常常直接回 **code 1(PERMISSION_DENIED)** —— 而使用者在手機設定裡**怎麼調都沒用**,
+     因為那是 LINE App 這一層的限制,不是網站權限、也不是系統定位開關。
+   ★ 舊訊息把這種情況也講成「設定 → Safari → 位置」⇒ 又一次**把人導向錯的解法**
+     (這正是 v12 那個 bug 的教訓,換一個場景重演)。
+   ★ 只認**確定會出事**的幾家,不做寬鬆比對:誤判會把用正常瀏覽器的人趕去換瀏覽器。 */
+const IN_APP = (() => {
+  const ua = navigator.userAgent || '';
+  if (/\bLine\//i.test(ua) || /\bLIFF\b/i.test(ua)) return { n: 'LINE', m: '右上角「⋯」→「用其他瀏覽器開啟」' };
+  if (/FBAN|FBAV|FB_IAB|FB4A/i.test(ua)) return { n: 'Facebook', m: '右上角「⋯」→「在外部瀏覽器中開啟」' };
+  if (/Instagram/i.test(ua)) return { n: 'Instagram', m: '右上角「⋯」→「在瀏覽器中開啟」' };
+  if (/MicroMessenger/i.test(ua)) return { n: '微信', m: '右上角「⋯」→「在瀏覽器中開啟」' };
+  return null;
+})();
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS 會自稱 Mac
+
+/* 內建瀏覽器的**事前**提醒(不要等他按下去失敗才講)。
+   ★ 只是提醒,不擋:LINE 的 WebView 偶爾拿得到定位(看 LINE App 自己的權限),
+     直接擋掉會把拿得到的人也擋住。給他知道、讓他自己決定要不要換瀏覽器。
+   ★ 這段必須放在 const IN_APP **之後** —— 放前面是 TDZ,整支腳本會 ReferenceError 掛掉
+     (第一版就寫錯位置)。 */
+if (IN_APP) {
+  $('inAppWarn').innerHTML =
+    `🧩 你是從 <b>${IN_APP.n}</b> 裡面打開這一頁的。${IN_APP.n} 的內建瀏覽器<b>常常不給定位</b>,` +
+    `按「用 GPS 開始找羊」可能會失敗。<br>建議先 <b>${IN_APP.m}</b>(選 Chrome 或 Safari)再玩;` +
+    '或直接用下面的 <b>🧪 客廳測試模式</b>。';
+  $('inAppWarn').style.display = 'block';
+}
+
 function geoErrHtml(code) {
-  if (code === 1) return '🚫 <b>定位權限被拒絕了</b>(這才是真的權限問題)。<br>' +
-    '· iPhone:設定 → Safari → 位置 → 選「詢問」;再確認 設定 → 隱私權與安全性 → 定位服務 → 有開。<br>' +
-    '· Android Chrome:網址列左邊的 🔒 → 權限 → 位置 → 允許。<br>' +
-    '· <b>從主畫面圖示開的</b>要再授權一次(和瀏覽器裡開的是兩份權限)。<br>' +
-    '改好回來按一次「📍 用 GPS 開始找羊」就好。';
+  if (code === 1) {
+    /* ① App 內建瀏覽器:這是唯一有效的解,要**排在最前面而且只講這一條**。
+          把三種解法並列會讓人先去試那兩個沒用的(他已經試過了才會回報)。 */
+    if (IN_APP) return `🚫 <b>${IN_APP.n} 的內建瀏覽器不給定位</b>。<br>` +
+      `這不是你的設定有問題 —— 在 ${IN_APP.n} 裡面<b>怎麼調都沒用</b>,要把這一頁換到真正的瀏覽器打開:<br>` +
+      `👉 <b>${IN_APP.m}</b>(選 Chrome 或 Safari),再按一次「📍 用 GPS 開始找羊」。<br>` +
+      '· 不想換?下面那顆 <b>🧪 改用客廳測試模式</b> 一樣能玩,只是羊不會跟著你走路移動。';
+    /* ② 真的是權限:把**這台裝置**的做法排前面,不要讓 Android 使用者先讀一段 iPhone 教學 */
+    const ios = '· iPhone:設定 → Safari → 位置 → 選「詢問」;再確認 設定 → 隱私權與安全性 → 定位服務 → 有開。';
+    const and = '· Android:網址列左邊的 🔒 → 權限 → 位置 → 允許;<br>' +
+      '&nbsp;&nbsp;還是不行就看 <b>設定 → 位置</b>(系統總開關)有沒有開,以及 <b>設定 → 應用程式 → 你的瀏覽器 → 權限 → 位置</b>。';
+    return '🚫 <b>定位權限被拒絕了</b>(這才是真的權限問題)。<br>' +
+      (IS_IOS ? ios + '<br>' + and : and + '<br>' + ios) + '<br>' +
+      '· <b>從主畫面圖示開的</b>要再授權一次(和瀏覽器裡開的是兩份權限)。<br>' +
+      '改好回來按一次「📍 用 GPS 開始找羊」就好。';
+  }
   if (code === 2) return '📡 <b>手機收不到定位訊號</b>(權限是好的)。走到看得到天空的地方——' +
     '室內、地下室、貼隔熱紙的車上都收不到;也確認沒開飛航模式。<b>還在繼續試,不用重按。</b>';
   return '⏳ 還在等 GPS 的第一筆定位,<b>不用重按</b>,繼續等就好。';
