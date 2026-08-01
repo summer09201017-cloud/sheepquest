@@ -82,10 +82,16 @@
         ② **`?bust=` 對 Cloudflare Workers 靜態資源沒有用**(它不把 query 當快取鍵的一部分)。
            要拿到剛部署的版本必須送標頭:`curl -H 'Cache-Control: no-cache' -H 'Pragma: no-cache'`。
            07-30 就是因為用 `?bust=` 拿到舊的 sw.js,差一步就誤報「部署失敗」。
-      ⚠ 部署會被 zero-pii-guard 攔一次,那是**誤判**:它把 CDN 版本號 `leaflet@1.9.4`、
-        `three@0.160.0` 當成 email。本輪重新逐項查過:沒有 email、沒有電話/身分證、沒有金鑰,
-        唯一的座標是 25.0330,121.5654=台北 101(客廳測試模式的虛擬起點)→ 才用 PII_OK=1 放行。
-        指令:PII_OK=1 npx wrangler deploy --name hfpc-sheepquest --assets . --compatibility-date 2026-07-30
+      ⚠ 部署指令(**刻意不寫旗標**,0801 深夜改):
+        `npx wrangler deploy --name hfpc-sheepquest --assets . --compatibility-date 2026-07-30`
+      ⚠ 它會被 zero-pii-guard 攔一次,那是**誤判**:把 CDN 版本號 `leaflet@1.9.4`、`three@0.160.0`
+        當成 email。逐項查過:沒有 email、沒有電話/身分證、沒有金鑰,唯一的座標是
+        25.0330,121.5654=台北 101(客廳測試模式的虛擬起點,公開地標)。
+        ⇒ **每次都要先跑一次不帶旗標**,看紅燈內容確認仍是那兩個 CDN 版本號,
+          **才單次手打** `PII_OK=1` 重跑。**不要把旗標寫回這份文件**。
+        ★ 為什麼這麼囉嗦:0801 股票管家就是因為交接文件裡寫死 `PII_OK=1`,
+          zero-pii-guard 每次部署都沒響,三處真的個資在線上躺著,最後靠人肉 curl 才抓到。
+          「守門存在」不等於「守門會攔」——最容易漏的是**有沒有人在指令裡把它關掉了**。
       ⚠ 線上驗收要抓 `/`(根路徑),**不要抓 `/index.html`** —— Cloudflare 會 307 轉址,
         抓 index.html 會拿到 0 bytes,看起來像「檔案掛了」其實是假象(本輪踩過)。
 
