@@ -4,3 +4,4 @@ node_modules/
 # 驗收截圖:內容是真實地點的地圖畫面,不進版控(scripts/** 也已被 .assetsignore 擋在部署外)
 scripts/shots/
 scripts/shots-toon/
+scripts/shots-map3d/

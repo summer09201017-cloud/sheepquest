@@ -229,6 +229,7 @@
   <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
     🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。<br>
     🗺 戰鬥時腳下鋪的是 OpenStreetMap 的地圖圖磚(和上面那張地圖同一個來源,本來就會取圖)。<br>
+    🗺 「立體斜視角」地圖的街道資料來自 OpenFreeMap(一樣是 OpenStreetMap 的資料)——取圖範圍就是你看的那片地圖,和平面地圖**同等級**的暴露,沒有多送任何東西;選「平面」就完全不會連它。<br>
     上面兩件都可以用下面那個勾勾一次關掉(關了背景一律用草地)。</p>
   <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
   <!-- 🧑‍🌾 牧人的樣子由玩家自己選(0730 使用者拍板)。動物一律圓萌,只有「人」給選。
@@ -240,13 +241,21 @@
       <option value="map">真實地圖(你家附近的街道)</option>
     </select>
   </label>
+  <!-- 🗺 羊9(0803):地圖的樣子=立體斜視角(MapLibre+建築擠出)/平面(Leaflet)。
+       預設立體;WebGL 沒有、程式庫載不到、樣式載不到 → 全部自動退回平面,老手機不能壞。 -->
+  <label class="hint" style="display:block;margin-top:6px;font-weight:700">🗺 地圖的樣子:
+    <select id="map3dSel" class="btn" style="font-weight:700;padding:4px 8px">
+      <option value="3d">立體斜視角(像皮克敏;較耗電)</option>
+      <option value="flat">平面(省電、老手機)</option>
+    </select>
+  </label>
   <label class="hint" style="display:block;margin-top:6px;font-weight:700">🧑‍🌾 牧人的樣子:
     <select id="shepStyleSel" class="btn" style="font-weight:700;padding:4px 8px">
       <option value="A">A|寫實牧人(原本的樣子)</option>
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v16(2026-07-31 🗺 地圖底圖換成淡彩版,羊和野獸一眼看得出來;v15 的 🧩「從 LINE 開會先提醒換瀏覽器」與 v14 的 📮 明信片都在)——看不到新選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v18(2026-08-03 🗺 立體斜視角地圖=建築物長出來、鏡頭斜看,像皮克敏;v17 的 🎨 戰鬥卡通化也在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -665,7 +674,138 @@ function distM(a, b) {                                   // haversine
 let map = null, youMarker = null, sheepMarkers = [], pos = null, demo = false, watching = null;
 /* 📍 0731 定位修 bug 用的狀態(說明見下面 startGPS 的整段註解) */
 let geoTick = null, geoT0 = 0, gotFix = false, lastAcc = null, geoNote = '';
+
+/* ── 🗺 羊9(0803):立體斜視角地圖(MapLibre GL)——「像皮克敏」四根柱子的第①根 ──
+   皮克敏地圖的本體=**鏡頭斜 60°+建築物擠出成淡色積木+粉彩配色**,平面圖磚怎麼調色都到不了。
+   架構:兩個後端、一個包裝層。
+     · 立體=MapLibre GL(CDN 動態載,同 three.js 慣例)+ OpenFreeMap 免費向量圖磚(零 API key)。
+     · 平面=原本的 Leaflet + CARTO Voyager,**一行都沒動**——它是退路,不是遺產。
+     · initMap/youSet/mapPanTo/mapSetView/refreshSheep 依 mapIs3d 分流;呼叫端不知道底下是誰。
+   鐵則(缺一不可):
+     ① 老手機不能壞:WebGL 沒有 / 程式庫載不到 / 樣式 12 秒內載不進 → 全部**自動退回平面**,
+        並記 mlFailed=true 這個 session 不再嘗試(不要每次開地圖都折騰一輪)。
+     ② 開場面板可選「平面(省電)」= save.map3d(!== false 才開 3D;舊存檔沒這鍵=預設立體)。
+     ③ 隱私文案要跟功能一致:向量圖磚供應商(OpenFreeMap)已寫進開場隱私段——
+        取圖範圍=你看的那片地圖,與平面圖磚同等級,**不多送任何東西**。
+   ⚠ maplibre 的 zoom 比 leaflet 小 1(同視野);wrapper 內換算,呼叫端一律用 leaflet 標尺。 */
+const ML_URL = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+const ML_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+const ML_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+let mapIs3d = false, mlFailed = false, mapBooting = false, mlLoaded = false;
+const map3dOn = () => save.map3d !== false;
+function hasWebGL() {
+  try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); }
+  catch (e) { return false; }
+}
+function loadMapLibre() {
+  return new Promise((res) => {
+    if (window.maplibregl) return res(true);
+    if (mlLoaded) return res(false);                       // 載過但沒東西=CDN 壞,別重試
+    mlLoaded = true;
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = ML_CSS; document.head.appendChild(l);
+    const s = document.createElement('script'); s.src = ML_URL;
+    s.onload = () => res(!!window.maplibregl);
+    s.onerror = () => res(false);
+    document.head.appendChild(s);
+    setTimeout(() => res(!!window.maplibregl), 12000);     // CDN 掛著不回=12 秒放棄
+  });
+}
 function initMap() {
+  if (mapBooting) return;
+  if (map3dOn() && !mlFailed && hasWebGL()) { mapBooting = true; boot3d(); return; }
+  initFlat();
+}
+async function boot3d() {
+  const ok = await loadMapLibre();
+  mapBooting = false;
+  if (!ok || !pos) { mlFailed = true; if (pos) { initFlat(); afterMapSwap(); } return; }
+  try { init3d(); } catch (e) { fallbackToFlat('init3d throw: ' + e); return; }
+  afterMapSwap();
+}
+function afterMapSwap() { if (pos) { youSet(pos.lat, pos.lng); refreshSheep(); } }
+function init3d() {
+  mapIs3d = true;
+  map = new maplibregl.Map({
+    container: 'map', style: ML_STYLE,
+    center: [pos.lng, pos.lat], zoom: 16.3, pitch: 60, bearing: -15,
+    attributionControl: { compact: true, customAttribution: '© OpenStreetMap 貢獻者' },
+  });
+  youMarker = mk3d('<div class="youMark">🧑‍🌾</div>', pos.lat, pos.lng);
+  /* 樣式載不進(圖磚站掛了/被公司網路擋)→ 退回平面。⚠ 'error' 在 tile 缺檔時也會叫,
+     所以只在「樣式從來沒 load 成功」時才當成致命;load 過之後的零星 error 一律吞掉。 */
+  let styleUp = false;
+  const bootTimer = setTimeout(() => { if (!styleUp) fallbackToFlat('style 12s 沒載入'); }, 12000);
+  map.on('load', () => {
+    styleUp = true; clearTimeout(bootTimer);
+    pastelize();
+  });
+  map.on('error', (e) => { if (!styleUp && /style/i.test(String(e && e.error))) fallbackToFlat('style error'); });
+}
+function fallbackToFlat(why) {
+  try { map && map.remove && map.remove(); } catch (e) {}
+  map = null; youMarker = null; sheepMarkers = []; mapIs3d = false; mlFailed = true; mapBooting = false;
+  if (!pos) return;
+  initFlat(); afterMapSwap();
+  toast('🗺 立體地圖這台跑不動或載不到,先用平面地圖(功能都一樣)', 3600);
+}
+/* 粉彩化+建築擠出:對外部樣式的每一步都 try/catch——樣式是別人家的,圖層名改了不能讓遊戲壞 */
+function pastelize() {
+  const st = map.getStyle() || {};
+  for (const ly of st.layers || []) {
+    try {
+      if (ly.type === 'fill-extrusion') {
+        map.setPaintProperty(ly.id, 'fill-extrusion-color', '#e9e2f4');
+        map.setPaintProperty(ly.id, 'fill-extrusion-opacity', 0.93);
+      } else if (ly.type === 'fill' && /water/i.test(ly.id)) {
+        map.setPaintProperty(ly.id, 'fill-color', '#93d6f2');
+      } else if (ly.type === 'fill' && /(grass|park|wood|forest|meadow|golf|garden|green|cemetery|pitch)/i.test(ly.id)) {
+        map.setPaintProperty(ly.id, 'fill-color', '#a9dc90');
+      }
+    } catch (e) {}
+  }
+  /* 樣式裡沒有 3D 建築層就自己加(OpenMapTiles схема:building 圖層帶 render_height)。
+     來源 id 不寫死——找樣式裡第一個 vector source,樣式改名也不會斷。 */
+  if (!(st.layers || []).some((l) => l.type === 'fill-extrusion')) {
+    try {
+      const srcId = Object.keys(st.sources || {}).find((k) => (st.sources[k] || {}).type === 'vector');
+      if (srcId) map.addLayer({
+        id: 'sq-buildings-3d', type: 'fill-extrusion', source: srcId, 'source-layer': 'building', minzoom: 14,
+        paint: {
+          'fill-extrusion-color': '#e9e2f4',
+          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
+          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-opacity': 0.93,
+        },
+      });
+    } catch (e) {}
+  }
+}
+/* 3D 標記=DOM 元素(和 Leaflet divIcon 同一份 HTML/CSS,長一樣) */
+function mk3d(html, lat, lng) {
+  const el = document.createElement('div'); el.innerHTML = html;
+  return new maplibregl.Marker({ element: el.firstChild }).setLngLat([lng, lat]).addTo(map);
+}
+/* ── 包裝層:呼叫端只認這四個,不認後端 ── */
+function youSet(lat, lng) {
+  if (!youMarker) return;
+  if (mapIs3d) youMarker.setLngLat([lng, lat]); else youMarker.setLatLng([lat, lng]);
+}
+function mapPanTo(lat, lng) {
+  if (!map) return;
+  if (mapIs3d) map.easeTo({ center: [lng, lat], duration: 600 }); else map.panTo([lat, lng]);
+}
+function mapSetView(lat, lng, z) {
+  if (!map) return;
+  if (mapIs3d) map.jumpTo({ center: [lng, lat], zoom: z - 1 }); else map.setView([lat, lng], z);
+}
+/* 換「地圖的樣子」= 整座地圖換後端重建(羊/你 的標記跟著重掛) */
+function rebuildMap() {
+  try { map && map.remove && map.remove(); } catch (e) {}
+  map = null; youMarker = null; sheepMarkers = []; mapIs3d = false; mapBooting = false;
+  mlFailed = false;                                        // 使用者主動再選立體=給它再試一次的機會
+  if (pos) { initMap(); afterMapSwap(); }
+}
+function initFlat() {
   map = L.map('map', { zoomControl: false }).setView([pos.lat, pos.lng], 17);
   /* 🗺 v16:底圖換成 **CARTO Voyager**(使用者 07-31 拍板「先試中間那個」)。
      為什麼:OSM 官方預設樣式是米色建築+滿滿路名的街道圖,再怎麼用 CSS 調色都不會變成
@@ -684,15 +824,29 @@ function initMap() {
   if (save.pikminMap === true) $('map').classList.add('pikmin');
   youMarker = L.marker([pos.lat, pos.lng], { icon: L.divIcon({ className: '', html: '<div class="youMark">🧑‍🌾</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
 }
+/* 🔬 自動驗收把手(同 __sq3d 慣例:只讀不寫) */
+try { window.__sqmap = { is3d: () => mapIs3d, booting: () => mapBooting, failed: () => mlFailed, map: () => map }; } catch (e) {}
 function refreshSheep() {
   for (const m of sheepMarkers) m.remove();
   sheepMarkers = [];
   const list = sheepAround(pos.lat, pos.lng).map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d).slice(0, 14);
-  for (const s of list) {
-    const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
-    mk.bindTooltip(`${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`);
-    mk.on('click', () => openSheet(s));          // 📋 v14 ④:點羊 → 詳情面板(皮克敏點蘑菇那張)
-    sheepMarkers.push(mk);
+  /* 🗺 羊9:標記依後端分流;3D 還在開機(mapBooting)時先不畫標記——
+     下面的 nearBar/計數**照常跑**,抓羊玩法不等地圖。Leaflet 與 MapLibre 的 marker
+     剛好都有 .remove(),上面那行清場才能兩邊通吃。 */
+  if (map && !mapBooting) for (const s of list) {
+    const html = `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`;
+    const tip = `${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`;
+    if (mapIs3d) {
+      const mk = mk3d(html, s.lat, s.lng);
+      mk.getElement().title = tip;
+      mk.getElement().addEventListener('click', () => openSheet(s));
+      sheepMarkers.push(mk);
+    } else {
+      const mk = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map);
+      mk.bindTooltip(tip);
+      mk.on('click', () => openSheet(s));        // 📋 v14 ④:點羊 → 詳情面板(皮克敏點蘑菇那張)
+      sheepMarkers.push(mk);
+    }
   }
   let near = list[0];
   // 練習模式鎖定:被 ⚔️ 鎖住的那隻優先當「最近的羊」,不然旁邊有普通羊更近時會點成普通套索
@@ -721,8 +875,8 @@ function onPos(lat, lng, acc) {
     $('accChip').style.display = 'inline-block';
     $('accChip').style.color = acc > 40 ? '#ffd479' : '';
   }
-  if (!map) initMap();
-  youMarker.setLatLng([lat, lng]);
+  if (!map && !mapBooting) initMap();
+  youSet(lat, lng);                              // 🗺 羊9:包裝層分流(3D 開機中= youMarker null,youSet 自己防呆)
   refreshSheep();
   /* 🏞 走路的時候就先把「這一帶是哪裡」查好,不要等到開打才查(不然要等 3 秒才看得到背景)。
      只在**跨到新的 1 公里方格**時才查一次 —— 邊走邊查等於一直回報行蹤,那是不必要的暴露。*/
@@ -976,7 +1130,7 @@ const stepTo = n => {
   const step = Math.min(d * 0.45 + 3, 60) / 111000;     // 一步走掉近半距離
   const ang = Math.atan2(n.lat - pos.lat, n.lng - pos.lng);
   onPos(pos.lat + Math.sin(ang) * step, pos.lng + Math.cos(ang) * step);
-  map.panTo([pos.lat, pos.lng]);
+  mapPanTo(pos.lat, pos.lng);
 };
 $('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
 /* ⚔️ 練習救羊:**一鍵直接站到獸旁邊**(0729 修)——
@@ -993,11 +1147,11 @@ $('walkBeastBtn').onclick = () => {
   const ang = Math.atan2(demoTarget.lat - pos.lat, demoTarget.lng - pos.lng);
   const off = 4 / 111000;                                   // 站到離牠 4 公尺
   onPos(demoTarget.lat - Math.sin(ang) * off, demoTarget.lng - Math.cos(ang) * off);
-  if (map) map.setView([pos.lat, pos.lng], 18);
+  mapSetView(pos.lat, pos.lng, 18);
   toast(`⚔️ 已經站到${demoTarget.beast.n}旁邊(${demoTarget.name})——按下面那條「⚔️ 從${demoTarget.beast.n}口中救回…」就開始打!`, 5000);
 };
 $('locBtn').onclick = () => {
-  if (map && pos) map.setView([pos.lat, pos.lng], 17);
+  if (pos) mapSetView(pos.lat, pos.lng, 17);
   /* 🔁 0731:半路進了室內、GPS 斷了(watch 被瀏覽器收掉)時,這顆鈕要能**重新啟動定位**,
      不然使用者唯一的辦法是整頁重載,連羊圈畫面都要重走一次。 */
   if (!demo && watching === null) { toast('📍 重新開始定位…', 2000); startGPS(); }
@@ -1042,7 +1196,7 @@ function closeSheet() {
   setTimeout(() => { $('sheet').style.display = 'none'; }, 220);
 }
 $('shClose').onclick = closeSheet;
-$('shGo').onclick = () => { if (sheetTarget && map) map.panTo([sheetTarget.lat, sheetTarget.lng]); closeSheet(); };
+$('shGo').onclick = () => { if (sheetTarget) mapPanTo(sheetTarget.lat, sheetTarget.lng); closeSheet(); };
 $('shCatch').onclick = () => {
   if (!sheetTarget || distM(pos, sheetTarget) > 25) return;
   closeSheet(); target = sheetTarget; startCatch();
@@ -1417,6 +1571,14 @@ $('groundSel').onchange = e => {
   if (save.mapGround && save.noGeo)
     toast('🗺 已選真實地圖,但你勾了「🔒 不要連外查地點」→ 仍會用草地。要看地圖請把那個勾勾取消', 5200);
   else toast(save.mapGround ? '🗺 地面改成「真實地圖」,下一場戰鬥就會換' : '🗺 地面回到「草地」', 2600);
+};
+/* 🗺 羊9:地圖的樣子(立體斜視角 / 平面)——存進既有存檔;**當場重建地圖**(不必等下一場)。
+   選了立體又失敗照樣自動退平面(rebuildMap → initMap 的同一條降級路)。 */
+$('map3dSel').value = map3dOn() ? '3d' : 'flat';
+$('map3dSel').onchange = e => {
+  save.map3d = e.target.value === '3d'; persist();
+  toast(save.map3d ? '🗺 換成「立體斜視角」——建築物會長出來,鏡頭斜看' : '🗺 換成「平面地圖」(比較省電)', 2600);
+  if (pos) rebuildMap();
 };
 /* 🧑‍🌾 牧人的樣子(A 寫實 / B 圓萌)——玩家自己選,存進既有存檔,不新開 localStorage 鍵。
    下一場戰鬥生效(3D 舞台的牧人是只建一次的,mount() 會偵測到選項變了才重建)。 */
