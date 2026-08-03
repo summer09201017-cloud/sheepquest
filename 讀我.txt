@@ -109,8 +109,11 @@
     常設閘門 scripts/verify-toon.mjs(材質普查+四案截圖);線上指紋驗過。
     ⚠ 部署時撞出 zero-pii-guard 的 bug(email 誤判不吃 PII_OK=1)——0801 收緊時
     email 檢查被留在放行區外;已修(skills repo adcd7a8),本機生效版使用者親手套用。
- 羊9 🗺 地圖換 3D 斜視角(Leaflet→MapLibre+建築擠出+粉彩自訂樣式)4-6h ★★★★★
-    ⚠ 跑不動自動退回平面圖;向量圖磚供應商要寫進隱私聲明
+ 羊9 ✅ 0803 完工上線(sw v18):雙後端(MapLibre 立體/Leaflet 平面退路)+包裝層分流;
+    建築 fill-extrusion+粉彩;無 WebGL/CDN 掛→自動退平面;OpenFreeMap 已進隱私段。
+    常設閘門 scripts/verify-map3d.mjs(三案含降級)+verify-geo 迴歸 21/21。
+    ⚠ 給下一手:改地圖一律走包裝層(youSet/mapPanTo/mapSetView),別直呼 L.* 或 maplibre;
+    「地圖的樣子」選單當場重建地圖(rebuildMap)。
  羊10 🧑‍🌾 3D 牧人走在地圖上(吃羊9 地基,羊9 沒做免談)3-4h ★★★★
  羊11 🌅 時段氛圍(晨昏色調,收割 race-stage-kit)1h ★★
  🚫 刻意不做:AR 彩蛋、計步孵蛋(理由在大表)。
