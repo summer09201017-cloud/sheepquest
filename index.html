@@ -249,13 +249,21 @@
       <option value="flat">平面(省電、老手機)</option>
     </select>
   </label>
+  <!-- 😾 獸的樣子(0804 使用者點名「太可愛了,要像庫巴一樣可怕」)。預設兇猛;
+       帶幼幼班的老師一鍵切回圓萌 —— 不流血、獸只是被趕走這兩條不管哪一版都不變。 -->
+  <label class="hint" style="display:block;margin-top:6px;font-weight:700">😾 獸的樣子:
+    <select id="beastStyleSel" class="btn" style="font-weight:700;padding:4px 8px">
+      <option value="fierce">兇猛版(獠牙尖角,像庫巴)</option>
+      <option value="tsum">圓萌版(給幼幼班)</option>
+    </select>
+  </label>
   <label class="hint" style="display:block;margin-top:6px;font-weight:700">🧑‍🌾 牧人的樣子:
     <select id="shepStyleSel" class="btn" style="font-weight:700;padding:4px 8px">
       <option value="A">A|寫實牧人(原本的樣子)</option>
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v18(2026-08-03 🗺 立體斜視角地圖=建築物長出來、鏡頭斜看,像皮克敏;v17 的 🎨 戰鬥卡通化也在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v20(2026-08-04 😾 獸改成兇猛版=獠牙尖角像庫巴,幼幼班可切回圓萌;v19 的 3D 牧人走在立體地圖上也在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -1739,6 +1747,14 @@ $('map3dSel').onchange = e => {
   toast(save.map3d ? '🗺 換成「立體斜視角」——建築物會長出來,鏡頭斜看' : '🗺 換成「平面地圖」(比較省電)', 2600);
   if (pos) rebuildMap();
 };
+/* 😾 獸的樣子(兇猛 / 圓萌)——存進既有存檔,不新開 localStorage 鍵。
+   戰鬥畫面下一場生效(獸本來就每場重建);地圖上的 3D 獸當場換(refreshSheep 會重造)。 */
+$('beastStyleSel').value = save.beastFierce === false ? 'tsum' : 'fierce';
+$('beastStyleSel').onchange = e => {
+  save.beastFierce = e.target.value === 'fierce'; persist();
+  toast(save.beastFierce ? '😾 獸換成「兇猛版」——獠牙尖角,下一場戰鬥就會換' : '🧸 獸換回「圓萌版」(幼幼班友善)', 3000);
+  if (pos) refreshSheep();                       // 地圖上的 3D 獸當場重造
+};
 /* 🧑‍🌾 牧人的樣子(A 寫實 / B 圓萌)——玩家自己選,存進既有存檔,不新開 localStorage 鍵。
    下一場戰鬥生效(3D 舞台的牧人是只建一次的,mount() 會偵測到選項變了才重建)。 */
 $('shepStyleSel').value = save.shepTsum ? 'B' : 'A';
@@ -2024,7 +2040,160 @@ const B3D = (() => {
        · BEAST_COLORS 那張表 —— 死神模式黑化要一鍵換色;
        · 每隻仍要認得出來:獅有鬃毛環、熊圓耳短尾、狼尖耳長蓬尾。
      ★ 也刻意保留「不恐怖」:圓臉+笑嘴+腮紅,獸只是被趕走,不流血不死亡特寫(這是給主日學孩子玩的)。*/
+  /* ── 😾 野獸・兇猛版(0804 使用者點名:「太可愛了,要改成像庫巴一樣可怕」)──
+     ⚠ 這是使用者**當面推翻自己 0729 定的「獸一律圓萌」**後加的第二種樣子,不是取代:
+       開場面板「😾 獸的樣子」可切 兇猛/圓萌,**預設兇猛**(使用者拍板)。
+       主日學帶幼幼班時老師一鍵切回圓萌 —— 這是「兩面刃要有開關」的同款做法(牧人 A/B)。
+     ★ 仍然不動的兩條(0729 溫柔規則,使用者這次沒有推翻,也沒有理由推翻):
+       ① **不流血、無死亡特寫**;② 獸是**被趕走**不是被打死。可怕的是「長相」,不是暴力。
+     ★ 庫巴感的七件(缺一就只是「深色的圓獸」):
+       ①獠牙(上下交錯的白錐)②頭上尖角 ③背脊尖刺列 ④紅眼+下壓怒眉
+       ⑤利爪(每腳三根小錐)⑥站姿(腿伸長、前傾壓低=撲擊前的預備)⑦深色濃艷
+     ★ 合約照舊:userData = { legs, headJ, kind, tailJ, tailZ, eyes, blinkT },頭朝 local +x
+       —— 甩杖/被撲/獸逃走/擺尾/死神模式黑化全靠這些,兩版必須長得一樣「可被操作」。 */
+  /* 調亮度(死神黑化仍走 BEAST_COLORS,不另開表)。
+     ⚠ 0804 踩過:第一版用 `(r*f) & 255` 遮罩,f>1 時**整數溢位繞回**
+       (216×1.34=289 → 289&255=33)⇒ 淺棕色的肚子變成**綠色**,而且不會報錯、
+       只是顏色不對(silent-failure-patterns 第③型:兜底/運算結果看起來合理)。
+       一律 clamp,別用位元遮罩當「防溢位」。 */
+  const dk = (hex, f) => {
+    const ch = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+    return (ch((hex >> 16) & 255) << 16) | (ch((hex >> 8) & 255) << 8) | ch(hex & 255);
+  };
+  function fierceFace(headJ, o) {
+    const HR = o.r, eyes = [];
+    for (const sz of [-1, 1]) {
+      // 眼白很少、瞳孔紅 → 瞇起來的凶眼(scale y 壓扁=眼神變利)
+      const e = blob(HR * 0.20, 0xffe9d0, 1, 0.52, 1, 10);
+      e.position.set(HR * 0.74, HR * 0.20, sz * HR * 0.40); headJ.add(e); eyes.push(e);
+      const p = blob(HR * 0.115, 0xd8241c, 1, 0.85, 1, 8);
+      p.position.set(HR * 0.86, HR * 0.20, sz * HR * 0.40); headJ.add(p);
+      // 怒眉:往鼻樑方向下壓的斜條(這一條是「凶」的關鍵,拿掉就只是紅眼睛)
+      const br = box(HR * 0.10, HR * 0.13, HR * 0.44, o.brow);
+      br.position.set(HR * 0.78, HR * 0.44, sz * HR * 0.38);
+      br.rotation.x = sz * 0.55; br.rotation.z = -0.30; headJ.add(br);
+    }
+    // 張口:深色凹陷 + 上下交錯的獠牙
+    const mouth = blob(HR * 0.30, 0x2a0d0d, 0.78, 0.62, 0.92, 10);
+    mouth.position.set(HR * 0.92, -HR * 0.34, 0); headJ.add(mouth);
+    /* 獠牙要**大**才看得到:第一版 0.075×0.34 在側視角只剩一點白(截圖確認過)。
+       側面看得見比正面對稱重要 ⇒ 加粗加長、往外側擺。 */
+    for (const sz of [-1, 1]) {
+      const up = cyl(0.001, HR * 0.11, HR * 0.52, 0xfff6e8, 8);     // 上排:尖端朝下
+      up.position.set(HR * 0.94, -HR * 0.44, sz * HR * 0.30); up.rotation.x = Math.PI + sz * 0.12; headJ.add(up);
+      const lo = cyl(0.001, HR * 0.09, HR * 0.40, 0xfff6e8, 8);     // 下排:尖端朝上(交錯咬合)
+      lo.position.set(HR * 0.86, -HR * 0.62, sz * HR * 0.36); lo.rotation.x = sz * -0.12; headJ.add(lo);
+    }
+    // 頭上兩支尖角(往後外側翹)
+    for (const sz of [-1, 1]) {
+      const horn = cyl(0.001, HR * 0.17, HR * 0.86, o.horn, 8);
+      horn.position.set(-HR * 0.18, HR * 0.92, sz * HR * 0.52);
+      horn.rotation.z = 0.42; horn.rotation.x = sz * 0.34; headJ.add(horn);
+    }
+    return eyes;
+  }
+  function makeBeastFierce(kind) {
+    const B = BEAST_COLORS[kind] || BEAST_COLORS.lion;
+    /* ⚠ 0804 截圖退件第③點:第一版整隻同一個棕色 → 尖刺、鬃毛、身體糊成一團,
+       「有刺」看得出來但「兇」讀不出來。庫巴之所以一眼認得,是**高對比**:
+       深殼淺肚、黑刺白牙。所以這裡刻意拉開三階:近黑尖刺 / 中間色身體 / 淺色胸腹。 */
+    const C = { body: dk(B.body, 0.78), dark: dk(B.dark, 0.58), mane: dk(B.mane, 0.30),
+      belly: kind === 'wolf' ? 0xd3d8de : dk(B.body, 1.34) };
+    const g = new T.Group();
+    const R = kind === 'bear' ? 0.62 : kind === 'wolf' ? 0.48 : 0.58;
+    /* ⑥ 站姿:腿伸長把身體撐高(圓萌版是「幾乎坐在地上」),再讓身體**前低後高**
+       = 野獸壓低前身準備撲的樣子。這一項比任何貼花都有效。 */
+    const bodyY = R + 0.52;
+    /* ⚠ 0804 截圖退件第①點:body x 拉到 1.30 時,身體前緣到 x=0.75,而頭在 1.20
+       ⇒ **頭埋進身體裡**、臉完全看不到,整隻讀成「帶刺的河馬」。
+       兇獸的焦點必須是**頭**(庫巴就是一顆大頭),所以身體收窄、頭往前站出來並放大。 */
+    const body = blob(R, C.body, kind === 'wolf' ? 1.42 : 1.10, 0.80, kind === 'wolf' ? 0.90 : 0.96);
+    body.position.y = bodyY; body.rotation.z = -0.12; g.add(body);
+    const rump = blob(R * 0.70, C.dark, 1, 0.90, 1);
+    rump.position.set(-R * 0.80, bodyY + R * 0.14, 0); g.add(rump);
+    const belly = blob(R * 0.76, C.belly, 1.22, 0.52, 0.86);        // 淺色胸腹:和深色背刺形成庫巴式對比
+    belly.position.set(R * 0.16, bodyY - R * 0.50, 0); g.add(belly);
+    // ③ 背脊尖刺列(庫巴的殼刺):從肩到臀一排,中間最長
+    for (let i = 0; i < 6; i++) {
+      const f = i / 5, h = R * (0.34 + 0.30 * Math.sin(f * Math.PI));
+      const sp = cyl(0.001, R * 0.13, h, C.mane, 6);
+      sp.position.set(R * (0.52 - 1.5 * f), bodyY + R * 0.80 - R * 0.10 * Math.abs(f - 0.5) * 2, 0);
+      sp.rotation.z = -0.45 + f * 0.5; g.add(sp);
+    }
+    // 四腿:比圓萌版長很多(看得到腿=站著,不是趴著)+ ⑤ 每腳三根利爪
+    const legs = [];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const j = new T.Group();
+      j.position.set(sx * R * 0.68, bodyY - R * 0.52, sz * R * 0.56);
+      const thigh = cyl(R * 0.22, R * 0.17, R * 0.86, C.body, 8); thigh.position.y = -R * 0.40; j.add(thigh);
+      const paw = blob(R * 0.24, C.dark, 1.25, 0.7, 1.1, 10); paw.position.y = -R * 0.86; j.add(paw);
+      for (const k of [-1, 0, 1]) {
+        const claw = cyl(0.001, R * 0.05, R * 0.24, 0xf3ece0, 6);
+        claw.position.set(R * 0.24, -R * 0.92, k * R * 0.11);
+        claw.rotation.z = -1.15; j.add(claw);
+      }
+      g.add(j); legs.push(j);
+    }
+    // 頭:比圓萌版低、往前伸(壓低頭=盯著獵物)
+    const headJ = new T.Group();
+    headJ.position.set(R * 1.58, bodyY + R * 0.14, 0); g.add(headJ);   // 1.20→1.58:站到身體前緣外,臉才露得出來
+    const HR = R * 0.90;                                               // 0.78→0.90:庫巴感=一顆大頭
+    headJ.add(blob(HR, C.body, 1.08, 0.94, 0.98));
+    const neck = cyl(HR * 0.52, HR * 0.62, R * 0.46, C.dark, 8);       // 頸子把頭與身體接起來(不然頭像浮在前面)
+    neck.rotation.z = Math.PI / 2; neck.position.set(-HR * 0.72, -HR * 0.10, 0); headJ.add(neck);
+    // 吻:狼尖、獅熊寬,都比圓萌版長且往前壓
+    if (kind === 'wolf') {
+      const sn = cyl(0.02, HR * 0.40, HR * 1.05, C.body, 10);
+      sn.rotation.z = -Math.PI / 2; sn.position.set(HR * 1.02, -HR * 0.16, 0); headJ.add(sn);
+    } else {
+      // ⚠ 0804 退件:第一版 0.52×1.30 的吻在放大的頭上變成一坨,讀成河馬。收小、往下壓。
+      const sn = blob(HR * 0.40, C.body, 1.18, 0.72, 0.88);
+      sn.position.set(HR * 0.80, -HR * 0.26, 0); headJ.add(sn);
+    }
+    const nose = blob(HR * 0.13, 0x160c08, 1.2, 0.85, 1, 8);
+    nose.position.set(HR * (kind === 'wolf' ? 1.52 : 1.12), -HR * 0.16, 0); headJ.add(nose);
+    // 耳:往後貼(壓耳=威嚇,和圓萌版的立耳相反)
+    for (const sz of [-1, 1]) {
+      const ear = cyl(0.001, HR * 0.20, HR * 0.46, C.dark, 7);
+      ear.position.set(-HR * 0.52, HR * 0.72, sz * HR * 0.56);
+      ear.rotation.z = 1.15; ear.rotation.x = sz * 0.5; headJ.add(ear);
+    }
+    const eyes = fierceFace(headJ, { r: HR, brow: C.dark, horn: kind === 'bear' ? C.mane : dk(B.mane, 0.42) });
+    if (kind === 'lion') {
+      /* 獅子鬃毛・兇版=繞著臉一圈的**放射尖刺**(圓萌版是毛球)。
+         ⚠ 0804 截圖退件第②點:第一版同時給了 rotation.x 與 rotation.z,
+           THREE 預設 Euler 'XYZ' 會先套 z 再套 x ⇒ 兩者互相干擾,刺全部倒進身體裡。
+           錐體沿 local +y 建,要指向 (0, sin a, cos a) 只需 **rotation.x = π/2 − a**,
+           想往後掃就用 position.x 往後挪,**不要再疊 rotation.z**。 */
+      for (let i = 0; i < 14; i++) {
+        const a = i / 14 * Math.PI * 2;
+        const sp = cyl(0.001, HR * 0.17, HR * 0.80, C.mane, 6);
+        const rr = HR * 1.02;
+        sp.position.set(-HR * 0.26, Math.sin(a) * rr, Math.cos(a) * rr);
+        sp.rotation.x = Math.PI / 2 - a; headJ.add(sp);
+      }
+    }
+    // 尾巴:合約要 tailJ(擺尾動畫靠它);兇版做成粗尾+末端尖刺
+    const tailJ = new T.Group();
+    tailJ.position.set(-R * 1.30, bodyY + R * 0.24, 0); g.add(tailJ);
+    const tLen = kind === 'bear' ? 0.30 : kind === 'wolf' ? 0.92 : 0.70;
+    [0.25, 0.55, 0.85].forEach((f) => {
+      const b = sph(R * (kind === 'bear' ? 0.15 : 0.17) * (1.05 - 0.3 * f), C.dark, 8);
+      b.position.y = tLen * f; tailJ.add(b);
+    });
+    const tip = cyl(0.001, R * 0.13, R * 0.42, C.mane, 6); tip.position.y = tLen; tailJ.add(tip);
+    tailJ.rotation.z = kind === 'wolf' ? 1.05 : 0.85;
+    g.userData = { legs, headJ, kind, tailJ, tailZ: tailJ.rotation.z, eyes,
+      blinkT: kind === 'wolf' ? 1.7 : kind === 'bear' ? 3.1 : 0.4, fierce: true };
+    return g;
+  }
+  /* 圓萌 / 兇猛 由玩家選(save.beastFierce,舊存檔沒這鍵 ⇒ !== false ⇒ 預設兇猛=使用者 0804 拍板) */
+  const beastFierceOn = () => save.beastFierce !== false;
   function makeBeast(kind) {
+    if (beastFierceOn()) return makeBeastFierce(kind);
+    return makeBeastTsum(kind);
+  }
+  function makeBeastTsum(kind) {
     const C = BEAST_COLORS[kind] || BEAST_COLORS.lion;
     const g = new T.Group();
     // 圓團身體:半徑大、往前後拉一點、上下壓一點 = 豆子形。熊最胖、狼稍長。
