@@ -114,7 +114,13 @@
     常設閘門 scripts/verify-map3d.mjs(三案含降級)+verify-geo 迴歸 21/21。
     ⚠ 給下一手:改地圖一律走包裝層(youSet/mapPanTo/mapSetView),別直呼 L.* 或 maplibre;
     「地圖的樣子」選單當場重建地圖(rebuildMap)。
- 羊10 🧑‍🌾 3D 牧人走在地圖上(吃羊9 地基,羊9 沒做免談)3-4h ★★★★
+ 羊10 ✅ 0803 完工上線(sw v19):MapLibre custom layer 借 GL context 給 three.js,
+    人物被建築正確遮擋;共用 B3D 人物工廠(A/B 牧人同步);腳下光圈=綠普通/金金毛/紅有獸;
+    點地圖選羊用螢幕像素距離;省電(只有走動後 1.6s 連續重繪);three 載不到→回 emoji。
+    常設閘門 scripts/verify-map-chars.mjs(三案含降級)。人物比例 CHAR.scale=30。
+    ⚠ 給下一手兩條:①CHAR.layer 必須在 map.addLayer **之前**掛好(onAdd 是同步呼叫的,
+      晚設=「狀態 ready 但畫面沒人」的靜默失敗,0803 當場踩到)②光圈半徑要 ≥0.9×scale,
+      60° 俯角會把圓盤壓扁,12m 半徑等於沒畫。
  羊11 🌅 時段氛圍(晨昏色調,收割 race-stage-kit)1h ★★
  🚫 刻意不做:AR 彩蛋、計步孵蛋(理由在大表)。
  ⛪ 鐵則:新金句/故事文案先過審才烤語音;朗讀=預烤曉臻 mp3+中文數字唸出處。
