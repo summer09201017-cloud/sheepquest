@@ -738,11 +738,25 @@ function init3d() {
   map.on('load', () => {
     styleUp = true; clearTimeout(bootTimer);
     pastelize();
+    addCharLayer();                                    // 🗺 羊10:3D 牧人與羊群(載不到 three 就維持 emoji)
+  });
+  /* 🗺 羊10:點地圖 → 找最近的那隻羊開詳情。3D 模型不像 DOM 標記有 click,
+     用「螢幕像素距離」判斷比 raycast 穩(而且 emoji 版與 3D 版行為一致)。 */
+  map.on('click', (e) => {
+    if (!use3dChars() || !window._sheepList) return;
+    let best = null, bestD = 44;                       // 44px ≈ 手指大小
+    for (const s of window._sheepList) {
+      const p = map.project([s.lng, s.lat]);
+      const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    if (best) openSheet(best);
   });
   map.on('error', (e) => { if (!styleUp && /style/i.test(String(e && e.error))) fallbackToFlat('style error'); });
 }
 function fallbackToFlat(why) {
   try { map && map.remove && map.remove(); } catch (e) {}
+  CHAR.shep = null; CHAR.sheep = []; CHAR.layer = null; charReady = false; charLayerOn = false;   // 🗺 羊10:換後端=人物層跟著歸零
   map = null; youMarker = null; sheepMarkers = []; mapIs3d = false; mlFailed = true; mapBooting = false;
   if (!pos) return;
   initFlat(); afterMapSwap();
@@ -780,6 +794,128 @@ function pastelize() {
     } catch (e) {}
   }
 }
+/* ── 🗺 羊10(0803):3D 牧人與羊群「站在」立體地圖上(皮克敏柱②)──
+   做法:MapLibre 的 custom layer 借出它自己的 WebGL context 給 three.js,
+   兩者畫在**同一張畫布**上 → 人物會被建築正確遮擋(這是疊一層 canvas 做不到的)。
+   座標:以玩家位置為原點,其他東西換算成「離原點幾公尺」(x=東、z=南、y=高),
+     再用 MercatorCoordinate 把整個場景貼到地圖上。
+   ★ 人物**刻意放大**(CHAR.scale):真實比例的人在這個縮放下不到 1 像素;
+     皮克敏本來就是把角色畫得跟建築差不多高,那是刻意的,不是比例錯。
+   ★ 省電:只有「剛走動的 1.6 秒內」才連續重繪(triggerRepaint),平常靜止不燒電。
+   ★ 降級:three.js 載不到 → charReady 一直是 false → 自動保留原本的 emoji 標記,
+     立體地圖照樣能玩(和羊9 同一條「不能因為漂亮就壞掉」的路)。 */
+let charReady = false, charT = null, charLayerOn = false;
+const CHAR = {
+  scale: 30, oLat: 0, oLng: 0, shep: null, sheep: [], animUntil: 0, face: 0, t0: 0,
+};
+const use3dChars = () => mapIs3d && charReady;
+function metersFrom(lat, lng) {                       // → [three.x(東), three.z(南)]
+  const e = (lng - CHAR.oLng) * 111320 * Math.cos(CHAR.oLat * Math.PI / 180);
+  const n = (lat - CHAR.oLat) * 110574;
+  return [e, -n];
+}
+async function addCharLayer() {
+  if (!mapIs3d || charLayerOn) return;
+  const T3 = await B3D.lib();
+  if (!T3 || !map || !mapIs3d) return;                // 載不到 → 保留 emoji 標記(不是錯誤)
+  charT = T3; charLayerOn = true;
+  const self = {
+    id: 'sq-chars', type: 'custom', renderingMode: '3d',
+    onAdd(m, gl) {
+      this.cam = new T3.Camera();
+      this.scene = new T3.Scene();
+      this.scene.add(new T3.HemisphereLight(0xffffff, 0x8fae7a, 1.15));
+      const dl = new T3.DirectionalLight(0xffffff, 0.85); dl.position.set(3, 6, 4); this.scene.add(dl);
+      const rim = new T3.DirectionalLight(0xdfefff, 0.5); rim.position.set(-3, 4.5, -4); this.scene.add(rim);
+      this.ren = new T3.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
+      this.ren.autoClear = false;
+      charReady = true; CHAR.t0 = performance.now();
+      if (pos) { CHAR.oLat = pos.lat; CHAR.oLng = pos.lng; }
+      /* DOM 的 🧑‍🌾 標記換成 3D 牧人就要收掉——3D 人物上場那一刻就收,
+         不能等下次 youSet(那要等玩家走一步,中間頭上會多一個平面小人)。 */
+      if (youMarker) { try { youMarker.remove(); } catch (e) {} youMarker = null; }
+      refreshSheep();                                  // 換成 3D 版的羊群
+    },
+    render(gl, args) {
+      if (!this.ren) return;
+      /* MapLibre 4/5 的 render 第二參數不同款:4=矩陣陣列,5=物件(含 defaultProjectionData)。
+         兩種都認,升版才不會整層變黑(而且黑掉是靜默的=最難查的那種)。 */
+      const arr = (args && args.defaultProjectionData && args.defaultProjectionData.mainMatrix) || args;
+      if (!arr) return;
+      const mc = maplibregl.MercatorCoordinate.fromLngLat([CHAR.oLng, CHAR.oLat], 0);
+      const s = mc.meterInMercatorCoordinateUnits();
+      const l = new charT.Matrix4().makeTranslation(mc.x, mc.y, mc.z)
+        .scale(new charT.Vector3(s, -s, s))
+        .multiply(new charT.Matrix4().makeRotationX(Math.PI / 2));
+      this.cam.projectionMatrix = new charT.Matrix4().fromArray(arr).multiply(l);
+      const now = performance.now();
+      if (CHAR.shep) {                                 // 走路=上下微彈+面向前進方向(不靠特定骨架,兩版牧人都適用)
+        const walking = now < CHAR.animUntil;
+        CHAR.shep.position.y = walking ? Math.abs(Math.sin((now - CHAR.t0) / 90)) * 1.1 : 0;
+        CHAR.shep.rotation.y = CHAR.face;
+      }
+      this.ren.resetState();
+      this.ren.render(this.scene, this.cam);
+      if (now < CHAR.animUntil) map.triggerRepaint();  // 只有動的時候才連續重繪(省電)
+    },
+  };
+  /* ⚠ CHAR.layer 一定要在 addLayer **之前**掛好:onAdd 是 addLayer 內部**同步**呼叫的,
+     等 addLayer 回傳才設就太晚 → onAdd 裡的第一次 syncChars 拿不到 scene,
+     結果是「牧人與羊都沒出現、但狀態顯示 ready」= 靜默失敗(驗收 case ① 當場抓到)。 */
+  CHAR.layer = self;
+  try {
+    if (!map.getLayer('sq-chars')) map.addLayer(self);
+  } catch (e) { charLayerOn = false; CHAR.layer = null; }   // 加不上就當沒這回事,emoji 標記照舊
+}
+function charScene() { return CHAR.layer && CHAR.layer.scene; }
+function clearChars() {
+  const sc = charScene(); if (!sc) return;
+  for (const o of [CHAR.shep, ...CHAR.sheep]) {
+    if (!o) continue;
+    sc.remove(o);
+    o.traverse && o.traverse(n => { n.geometry && n.geometry.dispose(); n.material && n.material.dispose(); });
+  }
+  CHAR.shep = null; CHAR.sheep = [];
+}
+/* 依目前羊群清單重建 3D 人物(牧人固定在原點=玩家腳下) */
+function syncChars(list) {
+  const sc = charScene(); if (!sc || !pos) return;
+  clearChars();
+  CHAR.oLat = pos.lat; CHAR.oLng = pos.lng;
+  const shep = B3D.newShepherd();
+  if (shep) { shep.scale.setScalar(CHAR.scale); shep.position.set(0, 0, 0); sc.add(shep); CHAR.shep = shep; }
+  let beasts = 0;
+  for (const s of list) {
+    const [x, z] = metersFrom(s.lat, s.lng);
+    /* 腳下光圈:①白羊在淺色地圖上幾乎看不見,②羊站在大樓之間常被遮掉一半,
+       ③emoji 標記原本帶的「✨金毛 / 有獸」資訊要還回來 —— 一個圓盤同時解決三件。
+       用 MeshBasic(不吃光)+ 稍微離地,才不會跟建築 z-fighting。 */
+    const ring = new charT.Mesh(
+      /* ⚠ 半徑要夠大:60° 俯角會把圓盤壓成扁橢圓,半徑 12m 在這個縮放下只剩幾像素=等於沒畫
+         (第一版就是這樣,截圖看不到才發現)。0.95×scale ≈ 28m 才看得出來。 */
+      new charT.CircleGeometry(CHAR.scale * 0.95, 24),
+      new charT.MeshBasicMaterial({ color: s.beast ? 0xff7a55 : s.gold ? 0xffcc33 : 0x6fd94f, transparent: true, opacity: 0.82, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.4, z);
+    sc.add(ring); CHAR.sheep.push(ring);
+
+    const m = B3D.newSheep();
+    if (m) {
+      m.scale.setScalar(CHAR.scale * (s.gold ? 1.15 : 1));
+      m.position.set(x, 0, z);
+      m.rotation.y = Math.atan2(-x, -z);               // 每隻羊都望向牧人(不會有羊屁股對著鏡頭)
+      if (s.gold) m.traverse(n => { if (n.isMesh && n.material && n.material.color) { n.material = n.material.clone(); n.material.color.offsetHSL(0.11, 0.45, 0.06); } });
+      sc.add(m); CHAR.sheep.push(m);
+    }
+    // 被獸叼住的羊旁邊放一隻獸(最多 3 隻:14 隻全放會讓中階手機掉幀)
+    // ★ 獸刻意做得比牧人小一點(0.72):獸型是圓團身,同樣 scale 下體積看起來比人大一倍,
+    //   放任它會變成「巨獸叼小羊」——嚇到孩子,違反「獸不可恐怖」那條。
+    if (s.beast && beasts < 3) {
+      const b = B3D.newBeast(s.beast.k || 'lion');
+      if (b) { b.scale.setScalar(CHAR.scale * 0.72); b.position.set(x + 7, 0, z + 5); b.rotation.y = Math.atan2(-x, -z); sc.add(b); CHAR.sheep.push(b); beasts++; }
+    }
+  }
+  if (map) map.triggerRepaint();
+}
 /* 3D 標記=DOM 元素(和 Leaflet divIcon 同一份 HTML/CSS,長一樣) */
 function mk3d(html, lat, lng) {
   const el = document.createElement('div'); el.innerHTML = html;
@@ -787,6 +923,18 @@ function mk3d(html, lat, lng) {
 }
 /* ── 包裝層:呼叫端只認這四個,不認後端 ── */
 function youSet(lat, lng) {
+  /* 🗺 羊10:3D 牧人上場後,DOM 的 🧑‍🌾 標記要收起來(不然頭上多一個平面小人)。
+     並記下前進方向與「還在走」的時間窗 → render 才知道要彈跳+轉向+連續重繪。 */
+  if (use3dChars()) {
+    if (youMarker) { try { youMarker.remove(); } catch (e) {} youMarker = null; }
+    if (CHAR.oLat || CHAR.oLng) {
+      const [dx, dz] = metersFrom(lat, lng);
+      if (Math.hypot(dx, dz) > 0.5) { CHAR.face = Math.atan2(dx, dz) + Math.PI; CHAR.animUntil = performance.now() + 1600; }
+    }
+    CHAR.oLat = lat; CHAR.oLng = lng;
+    if (map) map.triggerRepaint();
+    return;
+  }
   if (!youMarker) return;
   if (mapIs3d) youMarker.setLngLat([lng, lat]); else youMarker.setLatLng([lat, lng]);
 }
@@ -801,6 +949,7 @@ function mapSetView(lat, lng, z) {
 /* 換「地圖的樣子」= 整座地圖換後端重建(羊/你 的標記跟著重掛) */
 function rebuildMap() {
   try { map && map.remove && map.remove(); } catch (e) {}
+  CHAR.shep = null; CHAR.sheep = []; CHAR.layer = null; charReady = false; charLayerOn = false;   // 🗺 羊10:換後端=人物層跟著歸零
   map = null; youMarker = null; sheepMarkers = []; mapIs3d = false; mapBooting = false;
   mlFailed = false;                                        // 使用者主動再選立體=給它再試一次的機會
   if (pos) { initMap(); afterMapSwap(); }
@@ -825,7 +974,13 @@ function initFlat() {
   youMarker = L.marker([pos.lat, pos.lng], { icon: L.divIcon({ className: '', html: '<div class="youMark">🧑‍🌾</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
 }
 /* 🔬 自動驗收把手(同 __sq3d 慣例:只讀不寫) */
-try { window.__sqmap = { is3d: () => mapIs3d, booting: () => mapBooting, failed: () => mlFailed, map: () => map }; } catch (e) {}
+try {
+  window.__sqmap = {
+    is3d: () => mapIs3d, booting: () => mapBooting, failed: () => mlFailed, map: () => map,
+    chars: () => ({ ready: charReady, shep: !!CHAR.shep, sheep: CHAR.sheep.length, scale: CHAR.scale, walking: performance.now() < CHAR.animUntil }),
+    setScale: (v) => { CHAR.scale = v; if (window._sheepList) syncChars(window._sheepList); },   // 給驗收腳本調大小用
+  };
+} catch (e) {}
 function refreshSheep() {
   for (const m of sheepMarkers) m.remove();
   sheepMarkers = [];
@@ -833,7 +988,11 @@ function refreshSheep() {
   /* 🗺 羊9:標記依後端分流;3D 還在開機(mapBooting)時先不畫標記——
      下面的 nearBar/計數**照常跑**,抓羊玩法不等地圖。Leaflet 與 MapLibre 的 marker
      剛好都有 .remove(),上面那行清場才能兩邊通吃。 */
-  if (map && !mapBooting) for (const s of list) {
+  window._sheepList = list;                            // 🗺 羊10:給地圖點擊判斷用
+  /* 🗺 羊10:3D 人物就位時,羊群改用 3D 模型(emoji 標記整批不畫);
+     three 載不到 → use3dChars() 是 false → 走下面原本的 emoji 路,一行都不用改。 */
+  if (use3dChars()) { syncChars(list); }
+  else if (map && !mapBooting) for (const s of list) {
     const html = `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`;
     const tip = `${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`;
     if (mapIs3d) {
@@ -2632,6 +2791,15 @@ const B3D = (() => {
 
   /* ── 對外動作(每個都是一段 3D 動畫;沒 3D 就 no-op)── */
   const A = {
+    /* 🗺 羊10(0803):把「人物工廠」借給立體地圖用(MapLibre custom layer)。
+       ★ 刻意共用同一份模型工廠,不為地圖另畫一套牧人/羊 —— 兩份遲早漂移
+         (0730 的教訓:同一個動作只做在圓萌牧人身上,寫實版就沒有)。
+       ★ newShepherd() 走 makeShepherd(),所以玩家選的 A/B 牧人在地圖上也會跟著換。
+       只負責「載 three + 造模型」,完全不碰戰鬥舞台的 scene/renderer/RAF。 */
+    async lib() { if (!T) { try { T = await import(THREE_URL); } catch (e) { return null; } } return T; },
+    newShepherd() { return T ? makeShepherd() : null; },
+    newSheep() { return T ? makeSheep() : null; },
+    newBeast(kind) { return T ? makeBeast(kind) : null; },
     get on() { return ready && !failed; },
     busy() { return ready && lock > 0; },
     mount, resize,

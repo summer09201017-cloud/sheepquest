@@ -119,7 +119,7 @@
 //                 · 3D 戰鬥地面的圖磚也一起換,否則地圖與腳下是兩種畫風;CORS 查證過同樣是 `*`。
 //                 · 額外那層鮮豔 filter 改成**預設關閉**:截圖比對後,疊在 Voyager 上只會更糊、
 //                   **路名更難讀** —— 這是走在路上看的地圖,可讀性優先於好看。開關留在 📖 羊圈裡。
-const CACHE = 'sheepquest-v18'; /* v18(0803)羊9:立體斜視角地圖(MapLibre+OpenFreeMap+建築擠出+粉彩);跑不動自動退回平面;v17=戰鬥卡通化 */
+const CACHE = 'sheepquest-v19'; /* v19(0803)羊10:3D 牧人與羊群站在立體地圖上(MapLibre custom layer 共用 GL,人物會被建築遮擋);three 載不到自動退回 emoji 標記 */
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
