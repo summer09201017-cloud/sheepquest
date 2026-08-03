@@ -2262,6 +2262,34 @@ const B3D = (() => {
   function play(dur, fn, end) { acts.push({ t: 0, dur, fn, end }); lock++; }
   const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 
+  /* ── 🎨 羊8(0803):卡通化(toonify)——「像皮克敏」四根柱子裡的 ③卡通渲染+④高彩 ──
+     把 Lambert 材質換成 MeshToonMaterial(四階漸層貼圖=色塊分明的卡通光影,不是寫實漸層)。
+     ★ 只動「舞台上的角色」拉飽和(satBoost>0);backdrop 傳 0=只換材質不加彩——
+       0730 使用者定案「背景絕不可以搶戲、彩度壓低」仍然有效,卡通化不推翻它。
+     ★ 三個刻意跳過:①有貼圖的材質(地圖圖磚/照片幕——四階漸層會把照片壓成色帶)
+       ②MeshBasic(命中白光這種自發光特效)③ground(地面會被 buildMapGround 換貼圖,維持 Lambert 最穩)。
+     ★ 可重入:toon 過的材質不再處理(mount 每場都會叫一次)。 */
+  let gtex = null;                                          // 四階漸層貼圖(第一次用時才建)
+  function toonify(root, satBoost) {
+    if (!root || !T) return;
+    if (!gtex) {
+      gtex = new T.DataTexture(new Uint8Array([96, 160, 216, 255]), 4, 1, T.RedFormat);
+      gtex.minFilter = gtex.magFilter = T.NearestFilter;    // Nearest=硬切色階,才有「卡通」感
+      gtex.needsUpdate = true;
+    }
+    root.traverse(o => {
+      if (!o.isMesh || !o.material || o === ground) return;
+      const m = o.material;
+      if (!m.isMeshLambertMaterial || m.map) return;        // 只換素色 Lambert;貼圖/特效不動
+      const nm = new T.MeshToonMaterial({
+        color: m.color.clone(), gradientMap: gtex,
+        transparent: m.transparent, opacity: m.opacity, side: m.side,
+      });
+      if (satBoost) nm.color.offsetHSL(0, satBoost, 0.01);  // 舞台角色拉飽和(背景傳 0 不拉)
+      o.material = nm; m.dispose();
+    });
+  }
+
   async function mount(kind) {
     if (failed) return false;
     host = $('b3d');
@@ -2280,6 +2308,9 @@ const B3D = (() => {
       cam = new T.PerspectiveCamera(50, 1, 0.1, 60);
       scene.add(new T.HemisphereLight(0xffffff, 0x8fae7a, 1.05));
       const dl = new T.DirectionalLight(0xffffff, 0.7); dl.position.set(3, 6, 4); scene.add(dl);
+      /* 🎨 羊8(0803):輪廓光(rim light)——從斜後方打一盞偏冷的光,卡通材質的邊緣會亮起來,
+         角色從背景「跳出來」(皮克敏柱③的一半;另一半是下面的 toonify)。零陰影、便宜。 */
+      const rim = new T.DirectionalLight(0xdfefff, 0.5); rim.position.set(-3, 4.5, -4); scene.add(rim);
       ground = new T.Mesh(new T.CircleGeometry(9, 32), new T.MeshLambertMaterial({ color: GRASS_HEX }));
       ground.rotation.x = -Math.PI / 2; scene.add(ground);
       // 背景景物全部掛在這個群組底下 → 換地點時整組換掉,不動舞台上的人與獸
@@ -2312,6 +2343,11 @@ const B3D = (() => {
     /* 📷 照片背景:同樣**不 await**。找得到 photos/<場景>.jpg 就換上(並收掉積木背景),
        找不到就什麼都不做 → 積木背景照常。示範模式用程式畫的假圖。*/
     buildPhotoBackdrop(PLACE.scene);
+    /* 🎨 羊8:卡通化。角色(牧人/羊/獸/繩圈)拉飽和;背景積木只換材質不加彩(不搶戲鐵則)。
+       放在 buildBackdrop 之後=每場的新背景/新獸都蓋得到;photo/map 是貼圖材質,toonify 本來就跳過。 */
+    toonify(shep, 0.10); toonify(sheep, 0.10); toonify(rope, 0.10);
+    if (beast) toonify(beast, 0.10);
+    toonify(backdrop, 0);
     reset(!!kind);
     host.style.display = 'block'; $('b3dHint').style.display = 'none';
     // 3D 開著就把大 emoji 收起來(手機版面有限;還原要寫**明確值** inline-block,
@@ -2632,6 +2668,17 @@ const B3D = (() => {
         parts: scene ? scene.children.length : 0,
         staffHead: r3(sp), beastHead: r3(bp),
         reach: (sp && bp) ? +sp.distanceTo(bp).toFixed(2) : null,   // ← 這個數字要小到「碰得到」才算真的打中
+        /* 🎨 羊8:材質普查(給 verify-toon 斷言「卡通化真的生效」——不能只看截圖顏色猜) */
+        mats: (() => {
+          const c = { toon: 0, lambert: 0, other: 0 };
+          scene && scene.traverse(o => {
+            if (!o.isMesh || !o.material) return;
+            if (o.material.isMeshToonMaterial) c.toon++;
+            else if (o.material.isMeshLambertMaterial) c.lambert++;
+            else c.other++;
+          });
+          return c;
+        })(),
       };
     },
     /* 離開戰鬥:停 RAF + dispose(手機不要一直燒 GPU) */
