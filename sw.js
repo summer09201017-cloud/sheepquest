@@ -119,7 +119,7 @@
 //                 · 3D 戰鬥地面的圖磚也一起換,否則地圖與腳下是兩種畫風;CORS 查證過同樣是 `*`。
 //                 · 額外那層鮮豔 filter 改成**預設關閉**:截圖比對後,疊在 Voyager 上只會更糊、
 //                   **路名更難讀** —— 這是走在路上看的地圖,可讀性優先於好看。開關留在 📖 羊圈裡。
-const CACHE = 'sheepquest-v21'; /* v21(0804)🐑 羊變多:72m 格/72% 有羊/45% 有獸/觸發半徑 30m —— 走在路上就會遇到羊與戰鬥 */
+const CACHE = 'sheepquest-v22'; /* v22(0804)🐑 再加密:58m 格 ⇒ 走路每 ~56m 遇一隻、六成帶戰鬥(v21 是 72m 格/143m 一隻) */
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
