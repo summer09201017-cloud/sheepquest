@@ -151,9 +151,9 @@
 
 <div class="top">
   <span class="chip">🐑 <span id="count">0</span>/100</span>
-  <!-- 📍 0731:把「定位精度」講出來。抓羊要 25 公尺內,±200m 的粗定位會讓人
+  <!-- 📍 0731:把「定位精度」講出來。抓羊要 30 公尺內,±200m 的粗定位會讓人
        「走到了卻抓不到」,以為遊戲壞了 —— 那不是 bug,是 GPS 還沒收斂。 -->
-  <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 25 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
+  <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 30 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
   <span class="grow"></span>
   <button class="btn" id="ttsBtn" title="把經文唸出來(給還不識字的孩子);按一下可以關掉">🔊 朗讀</button>
   <button class="btn" id="bgmBtn" title="背景音樂與音效(打到獸、被獸撞到…);按一下可以關掉。和「朗讀」是分開的兩個開關,教室裡常只想關音樂">🎵 音樂</button>
@@ -198,7 +198,7 @@
   <div class="verse">「你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?找著了,就歡歡喜喜地扛在肩上,回到家裡。」<br>——路加福音 15:4-5
     <div style="margin-top:8px"><button class="btn" id="introSpeak">🔊 聽經文</button></div>
   </div>
-  <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(25 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!<br>
+  <p class="hint">你是牧人。附近走失了小羊——打開地圖,走到牠身邊(30 公尺內),用溫柔的套索把牠帶回羊圈。每隻羊都有名字;找齊 100 隻,天上也要為你歡喜!<br>
     ⚔️ <b>有的羊被野獸叼住了</b>(🦁獅子/🐻熊/🐺狼,✨金毛羊一定有):先看<b>紅線</b>亮起時「閃避」,指針進<b>綠區</b>時「甩杖擊退」,把獸趕走再溫柔地帶牠回家——就像大衛做的(撒上 17:34-35)。小羊全程不會受傷,獸只是被趕走。</p>
   <div class="safe">🙋 牧人守則(開始前請答應):<br>
     ① 走路時抬頭看路,過馬路把手機收起來。<br>
@@ -263,7 +263,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v20(2026-08-04 😾 獸改成兇猛版=獠牙尖角像庫巴,幼幼班可切回圓萌;v19 的 3D 牧人走在立體地圖上也在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v21(2026-08-04 🐑 羊變多了=走在路上就會遇到羊與戰鬥,觸發半徑放寬到 30 公尺;v20 的兇猛獸、v19 的 3D 牧人走在立體地圖上都在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -636,7 +636,7 @@ const PLACE = {
 };
 
 /* ── 確定性生成 ── */
-const CELL = 0.0011;                                    // ≈ 110m 格
+const CELL = 0.00065;                                   // ≈ 72m 格(0804 加密度,見 sheepInCell 上方註解)
 const EPOCH = () => Math.floor(Date.now() / (4 * 3600e3)); // 4 小時換一批羊
 function seedOf(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -651,22 +651,31 @@ const BEASTS = [
   { k:'bear', e:'🐻', n:'熊',   hp:3 },
   { k:'wolf', e:'🐺', n:'狼',   hp:2 },
 ];
+/* 🐑 密度(0804 使用者點名:「羊多一些,GPS 隨便走都能遇到羊與遇到戰鬥」)
+   原本:110m 一格 × 50% 有羊 × 25% 有獸 ⇒ 最近的羊平均約 80m、獸更稀
+        ⇒ 得「刻意走去找」,不是「走著走著遇到」。
+   現在:72m 一格 × 72% 有羊 × 45% 有獸 ⇒ 最近的羊平均約 42m、將近一半帶戰鬥;
+        觸發半徑同步 25→30m(GPS 精度常 ±10~40m,25m 太苛)⇒ 沿路直走每 ~100m 就會撞到一隻。
+   ⚠ 動 CELL 會讓**所有羊的位置重算** —— 全家同見仍成立(同版本同時段還是同一群),
+     但**混版期間新舊版看到的羊不同**;羊本來就每 4 小時換一批,影響僅止於換版那一刻。 */
+const SPAWN = 0.72, BEAST_P = 0.45, CATCH_M = 30;
 function sheepInCell(cx, cy) {
   const id = `${cx}|${cy}|${EPOCH()}`;
   const r = rng(seedOf(id));
-  if (r() > 0.5) return null;                            // 這格這時段沒有羊
+  if (r() > SPAWN) return null;                          // 這格這時段沒有羊
   const gold = r() < 0.06;                               // ✨ 金毛羊 6%
   const lat = (cy + 0.15 + r() * 0.7) * CELL, lng = (cx + 0.15 + r() * 0.7) * CELL;
   const name = NAMES[Math.floor(r() * NAMES.length)], kind = KINDS[Math.floor(r() * KINDS.length)];
   // ★ 新抽的兩個數字放在**最後面**:舊版本的人看到的羊(位置/名字/金毛)完全不變,
   //   只是他那份還沒有獸——混版期不會對不上(新增種子欄位一律往後接)。
   const bRoll = r(), bPick = Math.floor(r() * BEASTS.length);
-  const beast = (gold || bRoll < 0.25) ? BEASTS[bPick] : null;   // 金羊必定有獸;其餘 25%
+  const beast = (gold || bRoll < BEAST_P) ? BEASTS[bPick] : null; // 金羊必定有獸;其餘 45%(0804 調高)
   return { id, lat, lng, name, kind, gold, beast };
 }
 function sheepAround(lat, lng) {
   const cx0 = Math.floor(lng / CELL), cy0 = Math.floor(lat / CELL), out = [];
-  for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) {
+  // 格子變小 ⇒ 掃描範圍要從 ±4 放大到 ±6,不然地圖上看得到的羊反而變少(±6×72m ≈ 430m)
+  for (let dx = -6; dx <= 6; dx++) for (let dy = -6; dy <= 6; dy++) {
     const s = sheepInCell(cx0 + dx, cy0 + dy);
     if (s && !save.flock[s.id]) out.push(s);
   }
@@ -992,7 +1001,7 @@ try {
 function refreshSheep() {
   for (const m of sheepMarkers) m.remove();
   sheepMarkers = [];
-  const list = sheepAround(pos.lat, pos.lng).map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d).slice(0, 14);
+  const list = sheepAround(pos.lat, pos.lng).map(s => ({ ...s, d: distM(pos, s) })).sort((a, b) => a.d - b.d).slice(0, 20);
   /* 🗺 羊9:標記依後端分流;3D 還在開機(mapBooting)時先不畫標記——
      下面的 nearBar/計數**照常跑**,抓羊玩法不等地圖。Leaflet 與 MapLibre 的 marker
      剛好都有 .remove(),上面那行清場才能兩邊通吃。 */
@@ -1019,14 +1028,14 @@ function refreshSheep() {
   // 練習模式鎖定:被 ⚔️ 鎖住的那隻優先當「最近的羊」,不然旁邊有普通羊更近時會點成普通套索
   if (demo && demoTarget && !save.flock[demoTarget.id]) {
     const dt = { ...demoTarget, d: distM(pos, demoTarget) };
-    if (!near || dt.d <= 25 || dt.d < near.d) near = dt;
+    if (!near || dt.d <= CATCH_M || dt.d < near.d) near = dt;
   }
   window._near = near || null;
   /* 🔴 0729 修上線至今的真 bug:CSS `#nearBar{display:none}` 是 id 選擇器,
      用 `style.display=''`(清掉 inline)並不會顯示它——CSS 那條又生效,按鈕永遠不出現=**根本抓不到羊**。
      顯示一律寫**明確的值**,別靠清空 inline 樣式去「還原」被 CSS 藏起來的元素。 */
-  $('nearBar').style.display = near && near.d <= 25 ? 'block' : 'none';
-  if (near && near.d <= 25) $('nearBar').textContent = near.beast
+  $('nearBar').style.display = near && near.d <= CATCH_M ? 'block' : 'none';
+  if (near && near.d <= CATCH_M) $('nearBar').textContent = near.beast
     ? `⚔️ 從${near.beast.n}口中救回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`
     : `🪢 帶回 ${near.gold ? '✨金毛羊 ' : ''}${near.name}!(${Math.round(near.d)}m)`;
   $('count').textContent = flockCount();
@@ -1347,7 +1356,7 @@ function openSheet(s) {
   sheetTarget = s;
   const d = Math.round(distM(pos, s));
   $('shTitle').textContent = `${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e} ${s.name}`;
-  const near = d <= 25;
+  const near = d <= CATCH_M;   // 0804:與地圖那條同一個常數,不可再各寫一個數字
   $('shInfo').innerHTML =
     (s.beast ? `⚔️ <b>被${s.beast.n}叼住了</b> —— 要先趕走獸才帶得回來。<br>` : '') +
     (s.gold ? '✨ <b>金毛羊</b>(稀有)<br>' : '') +
