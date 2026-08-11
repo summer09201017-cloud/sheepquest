@@ -226,10 +226,10 @@
   </div>
   <!-- ⚠ 0730 這段文案必須跟著功能改成實話:加了「背景跟著地點變」之後,會送出粗略位置去查地名。
        原本寫「你的位置絕不上傳」,不改就是對家長說謊。★ 改文案與加開關是這個功能的必要條件,不是選配。-->
-  <p class="hint" style="margin-top:10px">隱私:你**精確**的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
-    🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把**粗略位置(約 1 公里見方的方格中心)**送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。<br>
+  <p class="hint" style="margin-top:10px">隱私:你<b>精確</b>的位置只留在這支手機上,絕不上傳;羊的位置是數學算出來的——同一時段、同一個地點,全家看到同一群羊,可以一起圍捕 🐑🐑<br>
+    🏞 為了讓 3D 戰鬥背景認出你在哪一帶(大橋/校園/捷運站…),會把<b>粗略位置(約 1 公里見方的方格中心)</b>送去查一次「這附近有什麼」,查到的結果存在這支手機裡、同一帶不再重複查。<br>
     🗺 戰鬥時腳下鋪的是 OpenStreetMap 的地圖圖磚(和上面那張地圖同一個來源,本來就會取圖)。<br>
-    🗺 「立體斜視角」地圖的街道資料來自 OpenFreeMap(一樣是 OpenStreetMap 的資料)——取圖範圍就是你看的那片地圖,和平面地圖**同等級**的暴露,沒有多送任何東西;選「平面」就完全不會連它。<br>
+    🗺 「立體斜視角」地圖的街道資料來自 OpenFreeMap(一樣是 OpenStreetMap 的資料)——取圖範圍就是你看的那片地圖,和平面地圖<b>同等級</b>的暴露,沒有多送任何東西;選「平面」就完全不會連它。<br>
     上面兩件都可以用下面那個勾勾一次關掉(關了背景一律用草地)。</p>
   <label class="hint" style="display:block;margin-top:4px;font-weight:700"><input type="checkbox" id="noGeoChk"> 🔒 不要連外查地點(背景一律用草地)</label>
   <!-- 🧑‍🌾 牧人的樣子由玩家自己選(0730 使用者拍板)。動物一律圓萌,只有「人」給選。
@@ -263,7 +263,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v22(2026-08-04 🐑 羊再加密=走路每 50~60 公尺就遇到一隻、六成帶戰鬥,觸發半徑 30 公尺;v20 的兇猛獸、v19 的 3D 牧人走在立體地圖上都在)——看不到「地圖的樣子」選項就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v23(2026-08-12 🐑 羊圈和「牧羊人與羊群 3D」互通了=走路抓到的羊可以搬過去出戰,羊圈裡有「☁ 產生搬運短碼」;v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人走在立體地圖上都在)——羊圈(📖)裡看不到「和牧羊人與羊群 3D 互通」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -295,6 +295,32 @@
   <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn primary" id="backBtn">← 回地圖繼續找</button>
     <button class="btn" id="cardsBtn">📮 明信片匣</button>
+  </div>
+
+  <!-- 🐑 跨站搬羊(0812 B 案)。整塊在 window.SheepDex 載不到時會被藏起來。
+       ★ /100 那本收藏冊維持「**走路找到的**羊」的語意 —— 從 3D 帶過來的羊列在下面自己的區塊,
+         不混進格子裡灌水(不然「已尋回 87/100」就不再是他真的走出去找到的數字了)。 -->
+  <div id="dexBox" style="display:none;margin-top:18px;border-top:1px solid rgba(0,0,0,.12);padding-top:14px">
+    <h2 style="font-size:17px;margin:0 0 6px">🐑 和「牧羊人與羊群 3D」互通</h2>
+    <div class="hint" id="dexStat"></div>
+    <div id="dex3dWrap" style="display:none;margin-top:10px">
+      <div class="hint" style="font-weight:700">從 3D 帶過來的羊(可在那邊出戰):</div>
+      <div class="flock" id="dex3dGrid"></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="dexUp">☁ 產生搬運短碼</button>
+      <button class="btn" id="dexDown">📥 用短碼收羊</button>
+      <button class="btn" id="dexExport">📋 複製羊圈文字</button>
+      <button class="btn" id="dexImport">📄 貼上羊圈文字</button>
+    </div>
+    <div class="hint" id="dexMsg" style="margin-top:8px;min-height:1.4em"></div>
+    <textarea id="dexIo" style="display:none;width:100%;height:120px;margin-top:8px;font-size:12px;
+      font-family:ui-monospace,monospace;border-radius:10px;padding:8px;border:1px solid rgba(0,0,0,.2)"></textarea>
+    <div class="hint" style="margin-top:8px">
+      兩個網站在不同網址,手機上的羊圈和電腦上的羊圈是<b>各自存的</b>。短碼是把羊送過去最快的方法
+      (打開 3D 那站的羊圈 →「📥 用短碼收羊」)。沒網路時就用「複製羊圈文字」貼過去,一樣通。
+      <br>🔒 羊圈裡<b>只有</b>羊的名字、長相、天賦——<b>沒有你走過的地點,也沒有經緯度</b>。
+    </div>
   </div>
   <!-- 🗺 地圖配色開關:CSS 調色改不掉 OSM 的路名與建築填色,不是每個人都喜歡 ⇒ 關得掉。
        (也讓 save.pikminMap 這個鍵「有讀也有寫」——只讀不寫的鍵是無聲失敗,守門 #23 抓的就是這個。)-->
@@ -334,6 +360,12 @@
 </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- 🐑 跨站羊圈格式 hfpc-sheepdex-v1(與「牧羊人與羊群 3D」互通)。
+     ★ 這支是**垂直搬運的複本**,正本 = skill sheepdex-crossite/assets/sheepdex.js —— 請勿就地改。
+     ★ 一定要放在主 script **之前**:它是傳統 <script>(不是 module),所以掛好 window.SheepDex
+       之後主 script 才會執行;反過來放的話主 script 讀到 undefined。
+     ★ 載不到就整塊收起來(同 three.js 的慣例):下面所有用它的地方都先問 if (window.SheepDex)。 -->
+<script src="./sheepdex.js"></script>
 <script>
 /* ═══ 尋羊記(路加福音 15)═══
    零個資鐵則:位置只在本機,絕不上傳;收藏存 localStorage。
@@ -360,6 +392,46 @@ const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringi
    ★ 網路壞掉/離線也不會有事:圖磚是非同步載的,載不到就一直是草地(見 buildMapGround)。*/
 const mapOn = () => save.mapGround !== false;
 const flockCount = () => Object.keys(save.flock).length;
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   🐑 跨站羊圈 hfpc-sheepdex-v1(0812:B 案「兩站的羊互通」)
+   ══════════════════════════════════════════════════════════════════════════════
+   對象=牧羊人與羊群 3D(hfpc-sheepflock3d.pages.dev)。它在**不同 origin**,
+   所以同一個 localStorage 鍵**不會自動同步** —— 統一格式買到的是「匯出的文字互相吃得下」,
+   真正的搬運靠羊圈裡的匯出/匯入或短碼。
+
+   ★ 為什麼是**雙寫**而不是改用 dex 當唯一存檔:save.flock 是「這隻抓過了」的去重鍵
+     (sheepAround 每次掃格子都要問它),動它等於動遊戲核心。dex 只是**額外**的一份可攜格式。
+
+   ★★ 隱私(這條刻意寫得囉唆,免得日後「順手補上」)★★
+     dex **不寫地點、不寫經緯度**,雖然格式允許那兩個欄位。三個理由:
+       ① 本檔 PLACE.label 的原始註解就寫著「只顯示在畫面上,不上傳、**不寫進羊圈紀錄**」;
+       ② 明信片匣之所以預設關閉,正是因為「存下來就等於留了一份『你去過哪些地方』的紀錄」;
+       ③ dex 之後**可以用短碼上雲搬到另一台機器** ⇒ 一旦寫進去,那份行蹤就會離開這支手機,
+          與開場隱私聲明的「位置不上傳」直接衝突。
+     羊要能在 3D 出戰、要長得一樣,需要的只有 name/genes/gold/rescued/verse —— 位置完全不需要。 */
+const DEX_OK = () => !!window.SheepDex;          // 載不到就整塊收起來
+function dexSync() {                             /* save.flock → dex(確定性 id ⇒ 可以每次都跑) */
+  if (!DEX_OK()) return null;
+  const SD = window.SheepDex, dex = SD.loadDex();
+  let added = 0;
+  for (const rawId in save.flock) {
+    const f = save.flock[rawId];
+    if (!f) continue;
+    const id = SD.gpsSheepId(rawId);
+    if (dex.sheep.some(s => s.id === id)) continue;
+    SD.addSheep(dex, SD.makeEntry({
+      id, name: f.name, source: 'gps', gold: !!f.gold, rescued: f.rescued || null,
+      verse: f.rescued ? '撒上17:37' : '路15:5', foundAt: f.ts || Date.now(),
+      /* 地點/經緯度刻意不給——見上面的隱私段 */
+    }));
+    added++;
+  }
+  return { dex, added };
+}
+/* 開場就把既有的羊補進 dex(舊使用者在 v22 之前抓的 100 隻也帶得走)。
+   ⚠ 確定性 id ⇒ 這件事是**可重複執行**的:跑一百次還是那幾隻,不會膨脹。 */
+try { dexSync(); } catch (e) { /* 圖鑑壞掉不可以影響主遊戲 */ }
 
 /* ── 🔊 經文朗讀:預烤「曉臻」人聲 mp3 ──
    為什麼要:還不識字的孩子玩到過關,經文只是畫面上的字,他讀不到。唸出來他就領受得到。
@@ -1676,6 +1748,9 @@ function caught() {
   save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
     rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
   persist();
+  /* 🐑 同一隻羊也寫進跨站羊圈(可以搬去「牧羊人與羊群 3D」出戰)。
+     ★ 包 try:圖鑑寫失敗(私密模式/容量爆)絕不可以害這一場結算失敗——羊已經帶回家了。 */
+  try { dexSync(); } catch (e) {}
   SFX.home();                              // 🏠 上行四音:溫柔的完成感
   SFX.startMusic('walk');                  // 帶回家了 → 音樂回到平靜的牧歌
   B3D.caught();                            // 3D:牧人舉杖、羊蹦到腳邊、金光一閃
@@ -1733,8 +1808,100 @@ function openFlock() {
               : '<div class="slot">·</div>';
   }
   $('flockGrid').innerHTML = html;
+  paintDexBox();                       // 🐑 跨站互通那一區(載不到 SheepDex 就自己藏起來)
   $('flockPanel').classList.add('on');
 }
+
+/* ══ 🐑 跨站搬羊 UI(0812 B 案)══════════════════════════════════════════════
+   ★ 訊息一律講「發生了什麼」,不是「成功/失敗」——匯入 0 隻與檔案壞掉是**兩件事**,
+     都印「完成」就是無聲失敗(sheepdex 的 importDexText 刻意用 -1 區分,這裡要用到)。 */
+const DEX_MOVE_API = 'https://hfpc-sheepdex.summer09201017.workers.dev';
+const dexMsg = (s) => { const el = $('dexMsg'); if (el) el.textContent = s || ''; };
+
+function paintDexBox() {
+  const box = $('dexBox');
+  if (!box) return;
+  if (!DEX_OK()) { box.style.display = 'none'; return; }   // 載不到就整塊收起來
+  box.style.display = '';
+  const SD = window.SheepDex, dex = SD.loadDex(), st = SD.dexStats(dex);
+  $('dexStat').textContent = `羊圈裡共 ${st.total} 隻:🚶 走路找到的 ${st.gps} 隻`
+    + (st.threeD ? `、🎮 從 3D 帶過來的 ${st.threeD} 隻` : '')
+    + (st.gold ? `,其中 ✨ 金毛 ${st.gold} 隻` : '');
+  const from3d = dex.sheep.filter(s => s.source === '3d').sort((a, b) => a.foundAt - b.foundAt);
+  $('dex3dWrap').style.display = from3d.length ? '' : 'none';
+  $('dex3dGrid').innerHTML = from3d.map(s => {
+    const g = SD.GIFTS[s.genes.gift] || {};
+    /* 沒有 three.js 也畫得出來:用羊毛基因當底色的小圓 + 天賦圖示(顏色靠 hexCss 從 genes 轉) */
+    return `<div class="slot got" title="${g.label || ''}${s.landmark ? '・' + s.landmark : ''}">`
+      + `<span style="display:inline-block;width:22px;height:22px;border-radius:50%;`
+      + `background:${SD.hexCss(s.genes.wool)};border:2px solid ${SD.hexCss(s.genes.face)}"></span>`
+      + `${g.icon || ''}<span class="nm">${s.name}</span></div>`;
+  }).join('');
+}
+
+$('dexExport').onclick = async () => {
+  const text = window.SheepDex.exportDexText(window.SheepDex.loadDex());
+  try {
+    await navigator.clipboard.writeText(text);
+    dexMsg('📋 已複製羊圈文字。到 3D 那站的羊圈按「📄 貼上羊圈文字」。');
+  } catch (e) {
+    /* clipboard 在非 https / 內建瀏覽器常被擋 ⇒ 退成「就在畫面上給你選」,不是靜靜失敗 */
+    const box = $('dexIo'); box.style.display = ''; box.value = text; box.select();
+    dexMsg('這支瀏覽器不給我直接複製——文字在下面,長按全選複製。');
+  }
+};
+$('dexImport').onclick = () => {
+  const box = $('dexIo');
+  if (box.style.display === 'none') {
+    box.style.display = ''; box.value = ''; box.focus();
+    dexMsg('把 3D 那站複製到的羊圈文字貼進下面的框,再按一次「📄 貼上羊圈文字」。');
+    return;
+  }
+  if (!box.value.trim()) { dexMsg('框裡還是空的——先貼上文字。'); return; }
+  const SD = window.SheepDex, dex = SD.loadDex();
+  const n = SD.importDexText(dex, box.value);
+  if (n < 0) { dexMsg('⚠ 這段文字看不懂(不是羊圈檔?)——沒有動到你原有的羊。'); return; }
+  box.style.display = 'none'; box.value = '';
+  dexMsg(n ? `🐑 收到 ${n} 隻新的羊!` : '這些羊你羊圈裡都已經有了,沒有新增(不是失敗)。');
+  paintDexBox();
+};
+
+/* ☁ 短碼搬運:上傳一次 → 得到 6 碼 → 在另一站打那 6 碼收羊(30 天後自動消失)。
+   ★ 沒網路/被擋一律**明說並指路到離線那條**,不可以只印「失敗」讓人卡住。 */
+$('dexUp').onclick = async () => {
+  const SD = window.SheepDex, dex = SD.loadDex();
+  if (!dex.sheep.length) { dexMsg('羊圈是空的——先去找一隻羊回來。'); return; }
+  dexMsg('☁ 正在送出…');
+  try {
+    const r = await fetch(DEX_MOVE_API + '/put', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: SD.exportDexText(dex),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.code) throw new Error(j.error || ('HTTP ' + r.status));
+    const box = $('dexIo'); box.style.display = ''; box.value = j.code;
+    dexMsg(`☁ 短碼是 ${j.code} —— 到 3D 那站的羊圈按「📥 用短碼收羊」打進去(30 天內有效)。`);
+  } catch (e) {
+    dexMsg('☁ 送不出去(沒網路或被擋)。改用「📋 複製羊圈文字」貼過去,一樣搬得動。');
+  }
+};
+$('dexDown').onclick = async () => {
+  const code = (prompt('打入另一台裝置給你的 6 碼搬運碼:') || '').trim().toLowerCase();
+  if (!code) return;
+  dexMsg('📥 正在收…');
+  try {
+    const r = await fetch(DEX_MOVE_API + '/get?code=' + encodeURIComponent(code));
+    if (r.status === 404) { dexMsg('📥 查不到這個短碼(可能打錯,或已經過了 30 天)。'); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const SD = window.SheepDex, dex = SD.loadDex();
+    const n = SD.importDexText(dex, await r.text());
+    if (n < 0) { dexMsg('⚠ 收到的內容看不懂——沒有動到你原有的羊。'); return; }
+    dexMsg(n ? `🐑 收到 ${n} 隻新的羊!` : '那邊的羊你都已經有了,沒有新增(不是失敗)。');
+    paintDexBox();
+  } catch (e) {
+    dexMsg('📥 收不到(沒網路或被擋)。改用「📄 貼上羊圈文字」也可以。');
+  }
+};
 /* 🔒 不要連外查地點:勾了就完全不連外,背景一律草地(存進既有存檔,不新開 localStorage 鍵) */
 $('noGeoChk').checked = !!save.noGeo;
 $('noGeoChk').onchange = e => {
@@ -1784,7 +1951,7 @@ $('shepStyleSel').onchange = e => {
     B3D.photoDemo(v === '__photodemo');
     if (v === '__photodemo') {
       PLACE.forced = 'tamkang'; PLACE.scene = 'tamkang'; PLACE.label = '照片版示範';
-      toast('📷 照片版示範:這是**程式畫的假圖**,不是真的淡江大橋。真的要用就把自己拍的照片存成 photos/tamkang.jpg', 6500);
+      toast('📷 照片版示範:這是「程式畫的假圖」,不是真的淡江大橋。真的要用就把自己拍的照片存成 photos/tamkang.jpg', 6500);
       return;
     }
     PLACE.forced = v || null;

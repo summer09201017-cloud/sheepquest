@@ -119,8 +119,15 @@
 //                 · 3D 戰鬥地面的圖磚也一起換,否則地圖與腳下是兩種畫風;CORS 查證過同樣是 `*`。
 //                 · 額外那層鮮豔 filter 改成**預設關閉**:截圖比對後,疊在 Voyager 上只會更糊、
 //                   **路名更難讀** —— 這是走在路上看的地圖,可讀性優先於好看。開關留在 📖 羊圈裡。
-const CACHE = 'sheepquest-v22'; /* v22(0804)🐑 再加密:58m 格 ⇒ 走路每 ~56m 遇一隻、六成帶戰鬥(v21 是 72m 格/143m 一隻) */
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg',
+// v23(2026-08-12):🐑 **和「牧羊人與羊群 3D」互通羊圈**(B 案;使用者 0812 點名)——
+//                 羊也寫進跨站格式 localStorage `hfpc-sheepdex-v1`(save.flock 照舊不動,雙寫),
+//                 開場把既有的羊確定性回填(舊使用者 100 隻也帶得走);羊圈新增「☁ 短碼 / 📋 文字」
+//                 兩種搬運 + 「從 3D 帶過來的羊」獨立區(不混進 /100 那本收藏冊)。
+//                 ★ 格式實作在 ./sheepdex.js(skill sheepdex-crossite 的垂直搬運複本,勿就地改),
+//                   **一定要進 CORE**,否則離線時羊圈那一整區會自己收起來。
+//                 ★ 隱私:dex **不寫地點也不寫經緯度**(它可以用短碼上雲 ⇒ 寫了就等於把行蹤送出這支手機)。
+const CACHE = 'sheepquest-v23';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
   './voice/1sam17-37.mp3', './voice/voice-on.mp3'];
