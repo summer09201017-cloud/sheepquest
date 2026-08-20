@@ -126,7 +126,7 @@
 //                 ★ 格式實作在 ./sheepdex.js(skill sheepdex-crossite 的垂直搬運複本,勿就地改),
 //                   **一定要進 CORE**,否則離線時羊圈那一整區會自己收起來。
 //                 ★ 隱私:dex **不寫地點也不寫經緯度**(它可以用短碼上雲 ⇒ 寫了就等於把行蹤送出這支手機)。
-const CACHE = 'sheepquest-v23';
+const CACHE = 'sheepquest-v24';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
@@ -156,4 +156,9 @@ self.addEventListener('fetch', (e) => {
       return (await caches.match(e.request)) || Response.error();
     }
   })());
+});
+
+// 🏷️ 版號回報(0820 全艦隊批次):頁尾徽章問「實際執行中的版本」,答案=本 SW 的快取名。
+self.addEventListener('message', function (e) {
+  if (e && e.data === 'GET_VERSION' && e.source) e.source.postMessage({ type: 'SW_VERSION', v: CACHE });
 });
