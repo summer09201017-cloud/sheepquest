@@ -455,6 +455,8 @@ const VOICE = {                          // 經文出處 → 預烤人聲檔(內
   '路 15:6':   './voice/luke15-6.mp3',
   '撒上 17:37': './voice/1sam17-37.mp3',
   '_on':       './voice/voice-on.mp3',
+  '_walk':     './voice/walk-start.mp3',   // 旁白:定位到、出發(不是經文,曉臻同聲)
+  '_beast':    './voice/beast-fight.mp3',  // 旁白:搶救戰開場
 };
 /* ══════════════════════════════════════════════════════════════════════════════
    🎵 音樂與音效(2026-07-30 使用者點名:「要有背景音樂與音效,例如打到獸的音效、被獸撞到的音效」)
@@ -635,6 +637,15 @@ const TTS = {
     const ref = opt && opt.ref;
     const url = ref && VOICE[ref];
     if (!url) return;                    // 缺檔=不唸(鐵則①)——要唸就去 gen-voice.mjs 補烤
+    this._play(url);
+  },
+  /* 旁白(**不是經文**)唯一入口——同一套 mp3 機制與靜音開關;
+     獨立入口的理由:①「要唸出處」是經文的鐵律,旁白沒有出處 ②守門 #27 認函式名,
+     旁白走 speakScripture 會被當漏唸出處的經文擋下(2026-08-25 實測)。 */
+  speakNarration(text, opt) {
+    const ref = opt && opt.ref;
+    const url = ref && VOICE[ref];
+    if (!url) return;                    // 缺檔=不唸,絕不退化成機器聲
     this._play(url);
   },
 };
@@ -1236,6 +1247,7 @@ function beginPlay(lat, lng, acc) {
   onPos(lat, lng, acc);
   SFX.startMusic('walk');                            // 🎵 出發就有平靜的牧歌
   toast('🐑 附近的小羊出現了——走過去吧!(記得抬頭看路)', 3500);
+  TTS.speakNarration('出發囉!附近有小羊在等你。記得抬頭看路,慢慢走。', { ref: '_walk' });   // 🎙 出發旁白(戶外走路眼睛不在螢幕上,用聽的)
 }
 
 /* 🧩 v15:是不是「App 內建瀏覽器」(LINE / FB / IG …)。
@@ -1631,6 +1643,7 @@ function startCatch() {
   $('sheepBig').style.transform = 'none';
   $('beastVerse').style.display = 'none';
   if (target.beast) startFight(); else startLasso();
+  if (target.beast) TTS.speakNarration('小羊被野獸叼住了!勇敢一點,把牠救回來!', { ref: '_beast' });   // 🎙 搶救戰開場旁白
   B3D.mount(target.beast ? target.beast.k : null).then(ok => { if (ok) B3D.resize(); });   // 3D 舞台(載不到就靜默用簡易版)
   cancelAnimationFrame(raf);
   const tick = ts => {

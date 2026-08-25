@@ -126,11 +126,13 @@
 //                 ★ 格式實作在 ./sheepdex.js(skill sheepdex-crossite 的垂直搬運複本,勿就地改),
 //                   **一定要進 CORE**,否則離線時羊圈那一整區會自己收起來。
 //                 ★ 隱私:dex **不寫地點也不寫經緯度**(它可以用短碼上雲 ⇒ 寫了就等於把行蹤送出這支手機)。
-const CACHE = 'sheepquest-v24';
+const CACHE = 'sheepquest-v25';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
-  './voice/1sam17-37.mp3', './voice/voice-on.mp3'];
+  './voice/1sam17-37.mp3', './voice/voice-on.mp3',
+  // 🎙 牧場旁白(v25;不是經文,曉臻同聲)
+  './voice/walk-start.mp3', './voice/beast-fight.mp3'];
 // ⚠ 刻意**不**把 photos/*.jpg 放進 CORE:addAll 只要有一個檔 404,整個 SW 安裝就失敗,
 //   而照片是「有才用」的選配。真的放了照片、又想離線也能用,再自己把檔名加進 CORE。
 
