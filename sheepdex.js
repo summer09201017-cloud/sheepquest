@@ -71,6 +71,24 @@
   var SPOTS = ["none", "none", "patch", "dots"];
   var EARS = ["up", "down", "long"];
   var EYES = ["round", "sleepy", "happy"];
+  /* ---------- 性別與配飾(2026-08-26 新增)----------
+     使用者:「母的可以穿裙子或頭戴髮飾,公羊可以戴帽子或太陽眼鏡之類的,
+              這樣明信片裡,被救的羊,就不會都長得一樣。」
+     ★★ **這兩個欄位一定要抽在 randomGenes 的最後面**(見那支函式的註解):
+        在中間插一次 r() 會讓後面所有欄位偏移 ⇒ **既有的羊全部換臉**。
+     ★★ 而且它們是**從 id 現算的,不是靠傳輸的** —— normalizeEntry 會把 genes 整個重建,
+        舊版的站(還沒更新這支檔的)會把不認識的欄位洗掉。設計成現算之後:
+          · 舊站收到新羊 → 算不出 sex(它的 randomGenes 沒有)⇒ **不畫配飾,不會壞**(降級)
+          · 新站收到舊羊 → 用同一個 id 現算 ⇒ 一樣有配飾
+        ⇒ 兩邊都不必等對方升級,也不必動 Worker 中繼站。
+     ⚠ 配飾**不影響任何玩法數值**(不像 gift 會影響戰鬥)——純外觀,才可以這樣現算。 */
+  var SEXES = ["ewe", "ram"];
+  var DECOS = {
+    // 母羊:裙子 / 髮飾(花)/ 髮飾(蝴蝶結)/ 兩者都有
+    ewe: ["skirt", "flower", "bow", "skirt+flower"],
+    // 公羊:帽子 / 太陽眼鏡 / 圍巾 / 帽子+太陽眼鏡
+    ram: ["hat", "shades", "scarf", "hat+shades"],
+  };
 
   var NAME_POOL = [
     "小雪", "棉棉", "咩咩", "乖乖", "毛毛", "恩典", "平安", "喜樂", "小雲", "奶油",
@@ -105,7 +123,7 @@
   function randomGenes(rand) {
     var r = typeof rand === "function" ? rand : Math.random;
     var pick = function (arr) { return arr[Math.floor(r() * arr.length)]; };
-    return {
+    var g = {
       wool: pick(WOOL_COLORS),
       face: pick(FACE_COLORS),
       spots: pick(SPOTS),
@@ -114,6 +132,11 @@
       gift: pick(GIFT_ORDER),
       size: 0.88 + r() * 0.26,
     };
+    /* ⚠⚠ 新欄位一律**接在這裡(最後)**,絕不插進上面那一串 ——
+       每一行都消耗一次 r(),中間插一次會讓後面全部偏移 ⇒ 既有的羊整批換臉。 */
+    g.sex = pick(SEXES);
+    g.deco = pick(DECOS[g.sex]);
+    return g;
   }
 
   /* 同一個種子 → 永遠同一隻羊的長相(兩站一致)。種子一律用 entry.id。 */
@@ -167,6 +190,9 @@
       eyes: EYES.indexOf(g.eyes) >= 0 ? g.eyes : base.eyes,
       gift: GIFT_ORDER.indexOf(g.gift) >= 0 ? g.gift : base.gift,
       size: Number(g.size) >= 0.5 && Number(g.size) <= 2 ? Number(g.size) : base.size,
+      // 性別與配飾:對面站可能整個沒有(舊版)⇒ 一律用 id 現算的 base 補齊
+      sex: SEXES.indexOf(g.sex) >= 0 ? g.sex : base.sex,
+      deco: (DECOS[SEXES.indexOf(g.sex) >= 0 ? g.sex : base.sex] || []).indexOf(g.deco) >= 0 ? g.deco : base.deco,
     };
     if (s.gold) out.gold = true; else delete out.gold;
     if (s.rescued) out.rescued = String(s.rescued).slice(0, 12); else delete out.rescued;
@@ -324,6 +350,7 @@
   return {
     DEX_KEY: DEX_KEY, SQUAD_MAX: SQUAD_MAX, FOLLOW_MAX: FOLLOW_MAX,
     GIFTS: GIFTS, GIFT_ORDER: GIFT_ORDER, NAME_POOL: NAME_POOL,
+    SEXES: SEXES, DECOS: DECOS,
     WOOL_COLORS: WOOL_COLORS, FACE_COLORS: FACE_COLORS, SPOTS: SPOTS, EARS: EARS, EYES: EYES,
     hashSeed: hashSeed, mulberry32: mulberry32, randomGenes: randomGenes, genesFromSeed: genesFromSeed,
     hexCss: hexCss, pickName: pickName,

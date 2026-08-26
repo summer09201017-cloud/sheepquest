@@ -292,7 +292,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v28(2026-08-26 🔴 <b>修好牧人「倒著走」</b>(朝向反了 180°,從 0803 活到現在)+ 🐑 <b>羊圈裡可以調羊的密度</b>(密/中/疏);v27 ⌨ 電腦可用方向鍵/WASD 走路;v26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v29(2026-08-26 🐑 <b>每一隻羊都長得不一樣</b>了(毛色/斑紋/耳朵各不同,母羊穿裙子或戴髮飾、公羊戴帽子或太陽眼鏡)——明信片與羊圈都畫出牠本人;v28 修好牧人「倒著走」+ 羊的密度可調;v27 ⌨ 電腦可用方向鍵/WASD 走路;v26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -624,6 +624,10 @@ function dexSync() {                             /* save.flock → dex(確定性
     SD.addSheep(dex, SD.makeEntry({
       id, name: f.name, source: 'gps', gold: !!f.gold, rescued: f.rescued || null,
       verse: f.rescued ? '撒上17:37' : '路15:5', foundAt: f.ts || Date.now(),
+      /* 🐑 0826:明確帶上長相。不給的話 makeEntry 會用 dex id 自己算 —— 這一版剛好一樣
+         (遊戲端也是用 gpsSheepId 當種子),但**寫明比依賴巧合安全**:
+         哪天種子規則改了,不寫明的那些羊會在搬過去的時候換臉。 */
+      genes: SD.genesFromSeed(id),
       /* 地點/經緯度刻意不給——見上面的隱私段 */
     }));
     added++;
@@ -1286,7 +1290,7 @@ function syncEscort() {
   for (let i = 0; i < ids.length; i++) {
     const spot = escortSpot(i); if (!spot) break;        // 軌跡還不夠長 ⇒ 後面的也不用試
     const f = save.flock[ids[i]]; if (!f) continue;
-    const m = B3D.newSheep(); if (!m) break;             // three 沒載到就整批不畫(emoji 那條會接手)
+    const m = B3D.newSheep(ids[i]); if (!m) break;       // 🐑 每隻長自己的樣子(id → 基因);three 沒載到就整批不畫
     const [x, z] = metersFrom(spot.lat, spot.lng);
     m.scale.setScalar(CHAR.scale * (f.gold ? 1.05 : 0.9));   // 比野生羊小一點:牠們是隨行的,不該搶戲
     m.position.set(x, 0, z);
@@ -1318,7 +1322,7 @@ function syncChars(list) {
     ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.4, z);
     sc.add(ring); CHAR.sheep.push(ring);
 
-    const m = B3D.newSheep();
+    const m = B3D.newSheep(s.id);                        // 🐑 地圖上的每隻羊也長自己的樣子
     if (m) {
       m.scale.setScalar(CHAR.scale * (s.gold ? 1.15 : 1));
       m.position.set(x, 0, z);
@@ -1451,6 +1455,7 @@ try {
     setHour: (h) => { _todFake = h; applyTod(); return todNow().k; },
     /* 驗收用:直接餵一筆座標給軌跡(回傳有沒有推進) */
     pushTrail: (lat, lng) => trailPush(lat, lng),
+    genes: (rawId) => (B3D.sheepGenes ? B3D.sheepGenes(rawId) : null),   // 🐑 驗收用:那隻羊長什麼樣
     /* 抖動門檻本體(頂層純函數,量尺與遊戲共用同一份規則)——
        isDemo 明講,才驗得到「真實 GPS 擋抖動 / 客廳模式不套抖動門檻」兩種行為 */
     advances: (prev, next, isDemo) => trailAdvances(prev, next, isDemo),
@@ -1902,6 +1907,167 @@ $('shCatch').onclick = () => {
    ★ 零上傳:整張圖在 canvas 上合成,不經過任何伺服器。
    ★ 存檔是**選配、預設關閉**:存下來等於在這支手機留一份「你去過哪些地方」的紀錄,
      而開場的隱私聲明只承諾「位置不上傳」,沒承諾「不留存」——所以要使用者自己開。 */
+/* ══════════════════════════════════════════════════════════════════════════════
+   🐑 2D 版的基因羊(明信片與羊圈格子共用一份)
+   ══════════════════════════════════════════════════════════════════════════════
+   為什麼要有 2D 版:3D 那隻活在 WebGL 裡,明信片是 canvas 2D、羊圈是 HTML ——
+   都拿不到它。sheepdex 的 hexCss() 註解早就寫著「給沒有 three.js 的站畫縮圖用」,
+   這支就是那個用途。
+   ★ **和 3D 版共用同一份 genes**,所以同一隻羊兩邊看起來是同一隻(顏色/斑紋/耳朵/配飾都對得上)。
+   ★ 側面像,朝右(和明信片文字的閱讀方向一致);零相依、純幾何,不需要任何圖檔。
+   回傳 true/false:畫不出來(沒有 genes)時呼叫端退回 emoji。 */
+function drawSheep2D(ctx, cx, cy, r, genes, gold) {
+  if (!genes) return false;
+  try {
+    const hex = (n) => '#' + (Number(n) >>> 0).toString(16).padStart(6, '0').slice(-6);
+    const wool = gold ? '#f0d47a' : hex(genes.wool), face = hex(genes.face);
+    const S = r / 46;                                   // 以 r=46 為基準等比縮放
+    ctx.save(); ctx.translate(cx, cy);
+    // 腿(先畫,被身體蓋住上半)
+    ctx.strokeStyle = face; ctx.lineWidth = 7 * S; ctx.lineCap = 'round';
+    for (const lx of [-18, -4, 12, 24]) {
+      ctx.beginPath(); ctx.moveTo(lx * S, 14 * S); ctx.lineTo(lx * S, 32 * S); ctx.stroke();
+    }
+    // 身體:一團重疊的圓(羊毛的凹凸感;位置寫死=同一隻永遠一樣)
+    ctx.fillStyle = wool;
+    for (const [bx, by, br] of [[-20, 0, 17], [-4, -6, 19], [12, 0, 17], [-10, 8, 15], [4, 8, 15]]) {
+      ctx.beginPath(); ctx.arc(bx * S, by * S, br * S, 0, 6.2832); ctx.fill();
+    }
+    /* 斑紋 ⚠ 放大驗收修過一次:第一版是身體正中一顆大深色橢圓 ——
+       看起來不像斑紋,像**身上破了一個洞**。
+       修法:①移到背上(不在正中)②壓扁成貼著背的形狀 ③降透明度讓它像毛色而不是貼紙。 */
+    if (genes.spots === 'patch') {
+      ctx.fillStyle = face; ctx.globalAlpha = 0.55;
+      ctx.beginPath(); ctx.ellipse(-12 * S, -8 * S, 12 * S, 6.5 * S, -0.22, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(6 * S, -4 * S, 7 * S, 5 * S, 0.3, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (genes.spots === 'dots') {
+      ctx.fillStyle = face; ctx.globalAlpha = 0.5;
+      for (const [dx, dy] of [[-20, -6], [-8, 2], [4, -8], [8, 4]]) {
+        ctx.beginPath(); ctx.arc(dx * S, dy * S, 3.4 * S, 0, 6.2832); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // 尾巴
+    ctx.fillStyle = wool;
+    ctx.beginPath(); ctx.arc(-34 * S, -6 * S, 7 * S, 0, 6.2832); ctx.fill();
+    // 配飾:裙子(在身體之後、頭之前畫,才會蓋在身體下緣)
+    const deco = String(genes.deco || '');
+    const hue = ((genes.wool >>> 0) % 360);
+    const acc = `hsl(${(hue + 150) % 360},58%,60%)`, acc2 = `hsl(${(hue + 30) % 360},52%,66%)`;
+    /* 👗 裙子 ⚠ 放大驗收修過一次:第一版是一塊橫跨整個身體的長方形,**腿從中間穿過去**
+       —— 看起來像羊站在一張桌子後面,完全不像裙子。
+       修法:①收窄(比身體窄)②上緣貼在身體下緣、不是身體中間 ③下襬做成波浪邊
+       ④只到腿的一半(裙子蓋住大腿、露出小腿,才讀得出是裙子)。 */
+    /* 👗 裙子 ⚠⚠ 放大驗收**修了兩次**才對:
+       v1 一塊橫跨身體的長方形、腿從中間穿過 = 羊站在桌子後面。
+       v2 收窄+波浪下襬,**還是像桌子** —— 真正的原因是:羊是**側面像**,
+          而我畫的是「正面的梯形」;側面的裙子要**從身體下緣垂下、下襬明顯超出身體輪廓**,
+          而且不可以有一條直的腰帶橫線(那條線正是「桌板」的來源)。
+       v3:鐘形曲線、上緣貼著身體的弧、下襬蓋住腿的上三分之二。 */
+    if (deco.includes('skirt')) {
+      ctx.fillStyle = acc;
+      ctx.beginPath();
+      ctx.moveTo(-17 * S, 12 * S);
+      ctx.quadraticCurveTo(-2 * S, 17 * S, 13 * S, 12 * S);   // 上緣:順著肚子的弧,不是直線
+      ctx.quadraticCurveTo(19 * S, 24 * S, 17 * S, 31 * S);   // 右側往下張開
+      ctx.quadraticCurveTo(8 * S, 27 * S, 0 * S, 31 * S);     // 下襬波浪
+      ctx.quadraticCurveTo(-9 * S, 27 * S, -18 * S, 31 * S);
+      ctx.quadraticCurveTo(-22 * S, 22 * S, -17 * S, 12 * S); // 左側收回
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = acc2;                                   // 下襬滾邊:讓「布」的感覺出來
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.moveTo(-18 * S, 31 * S);
+      ctx.quadraticCurveTo(-9 * S, 27 * S, 0 * S, 31 * S);
+      ctx.quadraticCurveTo(8 * S, 27 * S, 17 * S, 31 * S);
+      ctx.lineTo(17 * S, 27 * S);
+      ctx.quadraticCurveTo(8 * S, 23 * S, 0 * S, 27 * S);
+      ctx.quadraticCurveTo(-9 * S, 23 * S, -18 * S, 27 * S);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    /* 耳朵**先畫**(壓在頭底下)而且用**比臉深一階**的顏色 ——
+       ⚠ 放大驗收修過:第一版耳朵與頭同色又畫在頭之上,整個融成一塊,
+         看起來像頭上長了一個瘤(long 耳那幾隻最明顯)。
+       同色部件之間要有明度差,這是本系列反覆出現的一條(3D 那邊的虎頸鬃也是這樣修的)。 */
+    const dark = (hx) => {                                   // 把顏色壓暗一階(不引入新色,只降明度)
+      const n = Number(hx) >>> 0;
+      const r2 = Math.max(0, ((n >> 16) & 255) * 0.62) | 0, g2 = Math.max(0, ((n >> 8) & 255) * 0.62) | 0, b2 = Math.max(0, (n & 255) * 0.62) | 0;
+      return `rgb(${r2},${g2},${b2})`;
+    };
+    ctx.fillStyle = dark(genes.face);
+    const earShape = genes.ears === 'up' ? [24, -22, 4.5, 10, 0.1]
+      : genes.ears === 'long' ? [22, 2, 5, 13, 0.35] : [20, -8, 8, 5.5, 0.35];
+    ctx.beginPath();
+    ctx.ellipse(earShape[0] * S, earShape[1] * S, earShape[2] * S, earShape[3] * S, earShape[4], 0, 6.2832);
+    ctx.fill();
+    // 頭(朝右)——★ 比第一版小一點:原本 12×13 幾乎和身體一樣大,看起來像兩團球黏在一起
+    ctx.fillStyle = face;
+    ctx.beginPath(); ctx.ellipse(29 * S, -9 * S, 10.5 * S, 11.5 * S, 0, 0, 6.2832); ctx.fill();
+    // 額前捲毛
+    ctx.fillStyle = wool;
+    ctx.beginPath(); ctx.arc(24 * S, -18 * S, 8 * S, 0, 6.2832); ctx.fill();
+    // 眼睛(三種)+ 嘴
+    ctx.fillStyle = '#1e1812';
+    if (genes.eyes === 'sleepy') {
+      ctx.strokeStyle = '#1e1812'; ctx.lineWidth = 2.2 * S;
+      ctx.beginPath(); ctx.moveTo(30 * S, -9 * S); ctx.lineTo(36 * S, -9 * S); ctx.stroke();
+    } else if (genes.eyes === 'happy') {
+      ctx.strokeStyle = '#1e1812'; ctx.lineWidth = 2.2 * S;
+      ctx.beginPath(); ctx.arc(33 * S, -8 * S, 3.4 * S, 3.4, 6.0); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(33 * S, -9 * S, 3 * S, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(34 * S, -10 * S, 1.1 * S, 0, 6.2832); ctx.fill();
+    }
+    // 配飾:頭上那些(最後畫,壓在頭之上)
+    if (deco.includes('flower')) {
+      ctx.fillStyle = acc;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc((22 + Math.cos(i * 1.257) * 5) * S, (-22 + Math.sin(i * 1.257) * 5) * S, 3.4 * S, 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffe08a';
+      ctx.beginPath(); ctx.arc(22 * S, -22 * S, 2.4 * S, 0, 6.2832); ctx.fill();
+    }
+    if (deco.includes('bow')) {
+      ctx.fillStyle = acc;
+      for (const bx of [-5, 5]) {
+        ctx.beginPath(); ctx.ellipse((24 + bx) * S, -24 * S, 4.6 * S, 3.4 * S, 0, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = acc2;
+      ctx.beginPath(); ctx.arc(24 * S, -24 * S, 2.6 * S, 0, 6.2832); ctx.fill();
+    }
+    if (deco.includes('hat')) {
+      ctx.fillStyle = acc;
+      ctx.beginPath(); ctx.ellipse(25 * S, -22 * S, 15 * S, 3.6 * S, 0, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(25 * S, -28 * S, 8 * S, 7 * S, 0, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = acc2;
+      ctx.beginPath(); ctx.ellipse(25 * S, -23 * S, 8.4 * S, 2.4 * S, 0, 0, 6.2832); ctx.fill();
+    }
+    if (deco.includes('shades')) {                      // 薄薄一條,只蓋眼睛那一帶(仍看得見臉的輪廓)
+      ctx.fillStyle = '#22252b';
+      ctx.beginPath(); ctx.ellipse(33 * S, -10 * S, 6.5 * S, 4 * S, 0, 0, 6.2832); ctx.fill();
+      ctx.fillRect(24 * S, -11.5 * S, 6 * S, 2.4 * S);
+    }
+    if (deco.includes('scarf')) {
+      ctx.fillStyle = acc;
+      ctx.beginPath(); ctx.ellipse(20 * S, 2 * S, 8 * S, 4.4 * S, -0.3, 0, 6.2832); ctx.fill();
+      ctx.fillRect(18 * S, 2 * S, 5 * S, 12 * S);
+    }
+    if (gold) {                                          // ✨ 金毛羊:加一圈柔光,和「戴配飾」不會混淆
+      ctx.strokeStyle = 'rgba(255,214,102,.75)'; ctx.lineWidth = 3 * S;
+      ctx.beginPath(); ctx.arc(0, 0, 42 * S, 0, 6.2832); ctx.stroke();
+    }
+    ctx.restore();
+    return true;
+  } catch (e) { try { ctx.restore(); } catch (e2) {} return false; }
+}
+
+try { window.drawSheep2D = drawSheep2D; } catch (e) {}   // 🔬 美術驗收台要放大逐隻看
+
 const POSTCARD = (() => {
   const W = 900, H = 1260, PHOTO_H = 760;
   let lastBlob = null, lastName = '';
@@ -1947,7 +2113,11 @@ const POSTCARD = (() => {
     let y = PHOTO_H + 78;
     ctx.fillStyle = '#2f4034';
     ctx.font = '800 54px "Noto Sans TC","Microsoft JhengHei",sans-serif';
-    ctx.fillText(`${info.emoji} ${info.name}`, 56, y);
+    /* 🐑 0826:名字旁邊畫**這一隻羊本人**,不是通用的 emoji ——
+       使用者原話:「這樣明信片裡,被救的羊,就不會都長得一樣」。
+       ★ 畫不出來(沒有 genes / 舊資料)就退回 emoji,明信片不會開天窗。 */
+    const drewSheep = info.genes ? drawSheep2D(ctx, 92, y - 20, 46, info.genes, info.gold) : false;
+    ctx.fillText(drewSheep ? info.name : `${info.emoji} ${info.name}`, drewSheep ? 148 : 56, y);
     y += 54;
 
     ctx.font = '700 30px "Noto Sans TC","Microsoft JhengHei",sans-serif';
@@ -2230,7 +2400,7 @@ function startCatch() {
   $('beastVerse').style.display = 'none';
   if (target.beast) startFight(); else startLasso();
   if (target.beast) TTS.speakNarration('小羊被野獸叼住了!勇敢一點,把牠救回來!', { ref: '_beast' });   // 🎙 搶救戰開場旁白
-  B3D.mount(target.beast ? target.beast.k : null).then(ok => { if (ok) B3D.resize(); });   // 3D 舞台(載不到就靜默用簡易版)
+  B3D.mount(target.beast ? target.beast.k : null, target.id).then(ok => { if (ok) B3D.resize(); });   // 3D 舞台(載不到就靜默用簡易版)
   cancelAnimationFrame(raf);
   const tick = ts => {
     const now = ts || performance.now();
@@ -2382,6 +2552,7 @@ function caught() {
     refreshSheep();
     POSTCARD.show({
       snap, name: target.name, emoji: target.kind.e, gold: target.gold,
+      genes: B3D.sheepGenes ? B3D.sheepGenes(target.id) : null,   // 🐑 明信片畫這一隻羊本人
       beast: target.beast ? target.beast.n : null,
       place: (save.noGeo ? '' : PLACE.label) || '',
       date: new Date().toLocaleDateString('zh-TW'),
@@ -2408,20 +2579,37 @@ $('fleeBtn').onclick = () => { cancelAnimationFrame(raf); tele = false; setTele(
 
 /* ── 羊圈 ── */
 /* 一隻羊在格子裡長什麼樣(羊圈/金毛櫥窗/跟隨小隊三處共用一份 —— 各寫一份就會有一天長得不一樣) */
-function slotHtml(s, extra) {
+function slotHtml(s, extra, id) {
   const tips = [];
   if (s.rescued) tips.push(`從${s.rescued}口中救回來的`);
   if (s.first) tips.push('今天的第一隻');            // 📅 羊2
+  /* 🐑 0826:格子裡畫**這一隻羊本人**(和明信片、地圖上是同一隻)。
+     ★ 用 canvas 轉 dataURL:羊圈是 HTML,拿不到 3D;而每隻都畫一次 44px 的小圖很便宜。
+     ★ 畫不出來(舊資料/SheepDex 沒載到)就退回原本的 emoji —— 羊圈不會開天窗。 */
+  let pic = '';
+  const gs = id && B3D.sheepGenes ? B3D.sheepGenes(id) : null;
+  if (gs) {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 88; c.height = 88;                   // 2× 給高解析螢幕
+      const cx = c.getContext('2d');
+      if (drawSheep2D(cx, 44, 48, 30, gs, s.gold)) {
+        tips.push(gs.sex === 'ewe' ? '母羊' : '公羊');
+        pic = `<img alt="" src="${c.toDataURL('image/png')}" style="width:38px;height:38px;image-rendering:auto">`;
+      }
+    } catch (e) {}
+  }
   return `<div class="slot got ${s.gold ? 'gold' : ''} ${s.first ? 'first' : ''}" title="${tips.join('・')}"${extra || ''}>`
-    + `${s.first ? '👑' : ''}${s.rescued ? '⚔️' : ''}${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`;
+    + `${s.first ? '👑' : ''}${s.rescued ? '⚔️' : ''}${s.gold ? '✨' : ''}${pic || s.e}<span class="nm">${s.name}</span></div>`;
 }
 function openFlock() {
   $('count2').textContent = flockCount();
-  const got = Object.values(save.flock).sort((a, b) => a.ts - b.ts);
+  // ⚠ 用 entries 不用 values:格子要畫出「這一隻羊本人」,而長相是**用 id 算的**
+  const got = Object.entries(save.flock).sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
   let html = '';
   for (let i = 0; i < 100; i++) {
-    const s = got[i];
-    html += s ? slotHtml(s) : '<div class="slot">·</div>';
+    const e = got[i];
+    html += e ? slotHtml(e[1], '', e[0]) : '<div class="slot">·</div>';
   }
   $('flockGrid').innerHTML = html;
   paintMiles();                        // 🏆 羊1:紀念章
@@ -2447,12 +2635,12 @@ function paintMiles() {
 
 /* ✨ 羊4:金毛櫥窗(純排版,不碰邏輯;一隻都沒有就整區收起來) */
 function paintGoldCase() {
-  const golds = Object.values(save.flock).filter((s) => s.gold).sort((a, b) => a.ts - b.ts);
+  const golds = Object.entries(save.flock).filter(([, s]) => s.gold).sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
   const box = $('goldCase');
   if (!golds.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   $('goldNum').textContent = `(${golds.length} 隻)`;
-  $('goldGrid').innerHTML = golds.map((s) => slotHtml(s)).join('');
+  $('goldGrid').innerHTML = golds.map(([id, s]) => slotHtml(s, '', id)).join('');
 }
 
 /* 🐑 羊14:選誰跟著走(上限 5 隻)。點格子=加入/移出。
@@ -2470,7 +2658,7 @@ function paintEscortBox() {
   /* 最多列 40 隻:羊圈可以到 100 隻,全列出來會把這一區變成第二本收藏冊(而且手機捲不完) */
   $('escortGrid').innerHTML = all.slice(0, 40).map((id) => {
     const s = save.flock[id], on = pick.has(id);
-    return slotHtml(s, ` data-eid="${id}" style="cursor:pointer;${on ? 'outline:3px solid var(--green);outline-offset:1px' : 'opacity:.55'}"`);
+    return slotHtml(s, ` data-eid="${id}" style="cursor:pointer;${on ? 'outline:3px solid var(--green);outline-offset:1px' : 'opacity:.55'}"`, id);
   }).join('');
   for (const el of $('escortGrid').querySelectorAll('[data-eid]')) {
     el.onclick = () => {
@@ -3202,9 +3390,33 @@ const B3D = (() => {
   const SHEEP_FACE = -2.2;
   /* 🧸 羊(tsum 圓萌版)——羊毛用**好幾顆重疊的球**堆出凹凸,這既最像羊毛也最 tsum;
      臉是深色小圓球+大眼腮紅深笑。腳只露一點點小圓球。頭一律在 local +x(見上面朝向鐵則)。*/
-  function makeSheep() {
+  /* 🐑 每隻羊長得不一樣(2026-08-26 使用者點名)——
+     ─────────────────────────────────────────────────────────────────────────
+     原話:「尋羊記的羊要學 sheepflock3D 的羊一樣,都長得不同(有黑、有白、有花...),
+             母的可以穿裙子或頭戴髮飾,公羊可以戴帽子或太陽眼鏡之類的,
+             這樣明信片裡,被救的羊,就不會都長得一樣。」
+     ★★ **基因不是隨機的,是從羊的 id 算出來的**(sheepdex.js 的 genesFromSeed)——
+       這一站的根是「全家同見」:同一時段、同一個地點,爸爸和孩子看到的必須是同一隻羊。
+       用 Math.random 決定長相的話,同一隻小雪在兩支手機上會是兩種顏色。
+     ★ 而且**跨站也一致**:羊圈格式(hfpc-sheepdex-v1)用同一支演算法,
+       所以搬到「牧羊人與羊群 3D」還是同一隻(孩子會說「這才是我的小雪」)。
+     ★ 載不到 SheepDex 時整組退回原本的白羊(離線鐵則:漂亮的東西不可以害遊戲壞掉)。 */
+  function sheepGenes(rawId) {
+    try {
+      const SD = window.SheepDex;
+      if (!rawId || !SD || !SD.genesFromSeed) return null;
+      /* ⚠⚠ 種子用**羊圈格式的 id**(gpsSheepId)而不是遊戲內的原始 id ——
+         羊圈裡早就存著的 genes 就是用它算的(makeEntry 的預設)。
+         這裡若用原始 id,同一隻羊會出現「地圖上是黑的、明信片與 3D 站是白的」,
+         而兩邊都沒有錯誤訊息 —— 那是最難查的一種不一致。 */
+      return SD.genesFromSeed(SD.gpsSheepId ? SD.gpsSheepId(rawId) : rawId);
+    } catch (e) {}
+    return null;
+  }
+  function makeSheep(genes) {
     const g = new T.Group();
-    const wool = 0xfaf7f0, face = 0x4a4038;
+    const G = genes || null;
+    const wool = G ? G.wool : 0xfaf7f0, face = G ? G.face : 0x4a4038;
     const R = 0.3, bodyY = 0.33;
     const b = blob(R, wool, 1.24, 1.0, 1.06); b.position.y = bodyY; g.add(b);   // 主體圓團
     // 羊毛凹凸:繞著身體黏幾顆小球(決定性擺放,不用隨機,才不會每次長不一樣)
@@ -3215,14 +3427,34 @@ const B3D = (() => {
       w.position.set(R * ax * 1.2, bodyY + R * ay * 0.62, R * az);
       g.add(w);
     }
+    /* 🎨 斑紋(genes.spots):patch=大塊補丁、dots=小圓點。用**臉色**當斑色,
+       整隻羊只有兩個顏色 ⇒ 遠看仍然乾淨,不會變成花花綠綠的雜訊。
+       ★ 位置寫死(不用隨機):同一隻羊每次進來都要長一樣。 */
+    if (G && G.spots === 'patch') {
+      for (const [px, py, pz, s] of [[-0.30, 0.30, 0.72, 0.44], [0.34, 0.16, -0.70, 0.34]]) {
+        const p = blob(R * s, face, 1, 0.9, 0.6, 10);
+        p.position.set(R * px, bodyY + R * py, R * pz); g.add(p);
+      }
+    } else if (G && G.spots === 'dots') {
+      for (const [px, py, pz] of [[-0.44, 0.52, 0.62], [0.10, 0.62, -0.60], [-0.70, 0.20, -0.34], [0.30, 0.20, 0.74]]) {
+        const p = sph(R * 0.17, face, 8);
+        p.position.set(R * px, bodyY + R * py, R * pz); g.add(p);
+      }
+    }
     // 臉:深色小圓球黏在前面(+x)
     const headJ = new T.Group(); headJ.position.set(R * 1.06, bodyY + R * 0.28, 0); g.add(headJ);
     const HR = R * 0.56;
     headJ.add(blob(HR, face, 1, 1.04, 0.94));
     const crown = sph(HR * 0.78, wool, 10); crown.position.set(-HR * 0.34, HR * 0.62, 0); headJ.add(crown); // 額前一撮捲毛
-    for (const sz of [-1, 1]) {                                 // 圓垂耳
-      const ear = blob(HR * 0.42, face, 0.55, 0.85, 1.25, 10);
-      ear.position.set(-HR * 0.12, HR * 0.12, sz * HR * 1.02); headJ.add(ear);
+    /* 👂 耳型(genes.ears):down 圓垂耳(原本的樣子)/ up 立耳 / long 長垂耳。
+       ★ 三種都用同一顆 blob 改比例與角度,不另做模型 —— 加新耳型只要多一行。 */
+    const EAR = G && G.ears === 'up' ? { sx: 0.5, sy: 1.35, sz: 0.8, y: 0.72, rot: -0.35 }
+      : G && G.ears === 'long' ? { sx: 0.5, sy: 0.8, sz: 1.9, y: 0.02, rot: 0.25 }
+      : { sx: 0.55, sy: 0.85, sz: 1.25, y: 0.12, rot: 0 };
+    for (const sz of [-1, 1]) {
+      const ear = blob(HR * 0.42, face, EAR.sx, EAR.sy, EAR.sz, 10);
+      ear.position.set(-HR * 0.12, HR * EAR.y, sz * HR * 1.02);
+      ear.rotation.x = sz * EAR.rot; headJ.add(ear);
     }
     const eyes = tsumFace(headJ, { r: HR, eye: 0.33, eyeGap: 0.38, blush: 0xe09a95, mouthY: 0.42, eyeColor: 0x1e1812 });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {        // 短胖小腳
@@ -3237,7 +3469,69 @@ const B3D = (() => {
     const puff = sph(R * 0.34, tailW, 10); puff.position.y = R * 0.34; tailJ.add(puff);
     const puff2 = sph(R * 0.22, tailW, 8); puff2.position.y = R * 0.66; tailJ.add(puff2);
     tailJ.rotation.z = 1.15;
-    g.userData = { tailJ, tailZ: 1.15, eyes, blinkT: 2.4 };
+
+    /* 👗🎩 配飾(genes.sex + genes.deco;2026-08-26 使用者點名)
+       母:裙子 / 頭花 / 蝴蝶結 · 公:帽子 / 太陽眼鏡 / 圍巾
+       ★ 三條分寸(這是聖經題材的兒童遊戲,不是換裝遊戲):
+         ① **不遮臉**:太陽眼鏡是唯一碰到臉的,做得薄、只蓋眼睛上緣,眉眼仍看得見
+            (系列鐵則:人物一定要有臉,表情要讀得出來)。
+         ② **不搶戲**:配飾一律小、低彩度,不可以比羊本身更顯眼——
+            孩子要先認得那是一隻羊,才是「戴帽子的那一隻」。
+         ③ **不影響玩法**:純外觀,不碰抓捕判定、不碰 gift(天賦才是有作用的那個)。
+       ★ 顏色從 id 現算的 hue 決定 ⇒ 同一隻羊永遠同一件衣服,而不同羊之間有變化。 */
+    if (G && G.sex) {
+      const hue = ((G.wool >>> 0) % 360) / 360;
+      const acc = new T.Color().setHSL((hue + 0.42) % 1, 0.62, 0.58).getHex();   // 與毛色互補、彩度收斂
+      const acc2 = new T.Color().setHSL((hue + 0.08) % 1, 0.55, 0.66).getHex();
+      const d = String(G.deco || '');
+      /* 👗 裙子 ⚠ 截圖驗收修過:第一版 R*0.98 幾乎和身體同寬,從地圖的 60° 俯角看下去
+         就是**整隻羊換了顏色**(畫面上出現一隻橄欖綠的羊)。
+         ★ 通則:**地圖上的羊只有 40 像素,配飾一律要小到不改變輪廓** ——
+           要看細節是在明信片與羊圈(那邊是 2D 大圖)。 */
+      if (d.includes('skirt')) {
+        const skirt = blob(R * 0.78, acc, 1.06, 0.34, 0.98, 14);
+        skirt.position.set(-R * 0.1, bodyY - R * 0.86, 0); g.add(skirt);
+      }
+      if (d.includes('flower')) {                      // 🌸 頭花:耳邊一朵五瓣小花
+        const fj = new T.Group(); fj.position.set(-HR * 0.1, HR * 0.86, HR * 0.72); headJ.add(fj);
+        for (let i = 0; i < 5; i++) {
+          const pet = sph(HR * 0.2, acc, 8);
+          pet.position.set(Math.cos(i * 1.257) * HR * 0.22, Math.sin(i * 1.257) * HR * 0.22, 0);
+          fj.add(pet);
+        }
+        const core = sph(HR * 0.13, 0xffe9a8, 8); fj.add(core);
+      }
+      if (d.includes('bow')) {                         // 🎀 蝴蝶結:頭頂兩片+中心結
+        const bj = new T.Group(); bj.position.set(-HR * 0.2, HR * 0.92, 0); headJ.add(bj);
+        for (const sz of [-1, 1]) {
+          const w = blob(HR * 0.3, acc, 0.5, 0.8, 1.15, 8);
+          w.position.set(0, 0, sz * HR * 0.34); bj.add(w);
+        }
+        bj.add(sph(HR * 0.15, acc2, 8));
+      }
+      if (d.includes('hat')) {                         // 🎩 帽子:扁帽簷+圓帽頂(不遮眼)
+        const hj = new T.Group(); hj.position.set(-HR * 0.18, HR * 0.9, 0); headJ.add(hj);
+        const brim = blob(HR * 0.92, acc, 1, 0.16, 1, 14); hj.add(brim);
+        const top = blob(HR * 0.5, acc, 1, 0.9, 1, 12); top.position.y = HR * 0.36; hj.add(top);
+        const band = blob(HR * 0.53, acc2, 1, 0.24, 1, 12); band.position.y = HR * 0.1; hj.add(band);
+      }
+      if (d.includes('shades')) {                      // 🕶 太陽眼鏡:薄薄一條,只蓋眼睛上緣
+        const sj = new T.Group(); sj.position.set(HR * 0.72, HR * 0.16, 0); headJ.add(sj);
+        for (const sz of [-1, 1]) {
+          const lens = blob(HR * 0.3, 0x22252b, 0.28, 0.62, 0.86, 10);
+          lens.position.set(0, 0, sz * HR * 0.36); sj.add(lens);
+        }
+        const bridge = blob(HR * 0.12, 0x22252b, 0.3, 0.3, 1.5, 8); sj.add(bridge);
+      }
+      if (d.includes('scarf')) {                       // 🧣 圍巾:脖子一圈+垂下一小截(同上,收小)
+        const sc = blob(HR * 0.72, acc, 0.9, 0.3, 0.9, 14);
+        sc.position.set(R * 0.72, bodyY + R * 0.06, 0); g.add(sc);
+        const tail2 = blob(HR * 0.24, acc, 0.45, 1.0, 0.6, 8);
+        tail2.position.set(R * 0.78, bodyY - R * 0.3, HR * 0.45); g.add(tail2);
+      }
+    }
+
+    g.userData = { tailJ, tailZ: 1.15, eyes, blinkT: 2.4, genes: G || null };
     return g;
   }
 
@@ -3634,7 +3928,7 @@ const B3D = (() => {
     });
   }
 
-  async function mount(kind) {
+  async function mount(kind, sheepId) {
     if (failed) return false;
     host = $('b3d');
     try {
@@ -3660,7 +3954,7 @@ const B3D = (() => {
       // 背景景物全部掛在這個群組底下 → 換地點時整組換掉,不動舞台上的人與獸
       backdrop = new T.Group(); scene.add(backdrop);
       shep = makeShepherd(); scene.add(shep);
-      sheep = makeSheep(); scene.add(sheep);
+      sheep = makeSheep(); sheep.userData.sheepId = null; scene.add(sheep);
       rope = new T.Mesh(new T.TorusGeometry(0.26, 0.032, 6, 16), new T.MeshLambertMaterial({ color: 0xd9b26a }));
       rope.visible = false; scene.add(rope);
       flash = new T.Mesh(new T.TorusGeometry(0.35, 0.06, 6, 18), new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0 }));
@@ -3673,6 +3967,17 @@ const B3D = (() => {
       scene.remove(shep);
       shep.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); });
       shep = makeShepherd(); scene.add(shep);
+    }
+    /* 🐑 舞台上這一隻要換成**這一場的那隻羊**(sheep 和 shep 一樣是只建一次的)。
+       ★ 用 id 比對而不是 genes 物件比對:genes 每次算出來都是新物件,比物件永遠不相等
+         ⇒ 每場都重建 = 白白 dispose 一次(不會壞,但沒必要)。
+       ⚠ 一定要 dispose 舊的(同上面牧人那條);沒 dispose 的話每救一隻羊就漏一組幾何。 */
+    if (sheep && sheep.userData.sheepId !== (sheepId || null)) {
+      scene.remove(sheep);
+      sheep.traverse(o => { o.geometry && o.geometry.dispose(); o.material && o.material.dispose(); });
+      sheep = makeSheep(sheepId ? sheepGenes(sheepId) : null);
+      sheep.userData.sheepId = sheepId || null;
+      scene.add(sheep);
     }
     if (beast) { scene.remove(beast); beast = null; }
     if (kind) { beast = makeBeast(kind); scene.add(beast); }
@@ -3821,7 +4126,15 @@ const B3D = (() => {
        只負責「載 three + 造模型」,完全不碰戰鬥舞台的 scene/renderer/RAF。 */
     async lib() { if (!T) { try { T = await import(THREE_URL); } catch (e) { return null; } } return T; },
     newShepherd() { return T ? makeShepherd() : null; },
-    newSheep() { return T ? makeSheep() : null; },
+    /* 🐑 genes 可以直接給(物件),或給羊的 id 讓它自己算(字串);
+       都不給就是原本那隻白羊(離線/舊呼叫端不會壞)。 */
+    newSheep(seedOrGenes) {
+      if (!T) return null;
+      const g = typeof seedOrGenes === 'string' ? sheepGenes(seedOrGenes)
+        : (seedOrGenes && typeof seedOrGenes === 'object' ? seedOrGenes : null);
+      return makeSheep(g);
+    },
+    sheepGenes,
     newBeast(kind) { return T ? makeBeast(kind) : null; },
     get on() { return ready && !failed; },
     busy() { return ready && lock > 0; },

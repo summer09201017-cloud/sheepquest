@@ -426,6 +426,50 @@ async function seedFlock(page, count, opt) {
   await page.close()
 }
 
+// ── ⑭ 🐑 每隻羊長得不一樣(0826 使用者:「這樣明信片裡被救的羊,就不會都長得一樣」)──
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  page.on('pageerror', (e) => errs.push('⑭ ' + String(e)))
+  await page.goto(URL, { waitUntil: 'domcontentloaded' })
+  await seedFlock(page, 12, { gold: 2 })
+  await boot(page)
+
+  const g = await page.evaluate(() => {
+    const SD = window.SheepDex
+    const ids = Object.keys(JSON.parse(localStorage.getItem('sheepquest-v1')).flock)
+    const set = { wool: new Set(), sex: new Set(), deco: new Set(), ears: new Set() }
+    for (const id of ids) {
+      const gg = window.__sqmap.genes(id)
+      if (!gg) continue
+      set.wool.add(gg.wool); set.sex.add(gg.sex); set.deco.add(gg.deco); set.ears.add(gg.ears)
+    }
+    /* ★★ 同一個 id 一定要算出同一隻(全家同見的根)—— 算兩次比對 */
+    const a = window.__sqmap.genes(ids[0]), b = window.__sqmap.genes(ids[0])
+    const stable = JSON.stringify(a) === JSON.stringify(b)
+    /* ★ 種子必須是**羊圈格式的 id**:遊戲端算的要等於 sheepdex 用 gpsSheepId 算的,
+       不然同一隻羊在地圖上與明信片/3D 站會長不一樣 */
+    const same = SD ? JSON.stringify(a) === JSON.stringify(SD.genesFromSeed(SD.gpsSheepId(ids[0]))) : false
+    return { wool: set.wool.size, sex: [...set.sex], deco: set.deco.size, ears: set.ears.size, stable, same, n: ids.length }
+  })
+  ok(g.wool >= 4, '⑭ 12 隻羊有多種毛色(有黑有白有花,不是都一樣)', { 毛色種類: g.wool, 耳型: g.ears, 配飾種類: g.deco })
+  ok(g.sex.length === 2 && g.sex.every((s) => s === 'ewe' || s === 'ram'), '⑭b 公母都有', { sex: g.sex })
+  ok(g.stable, '⑭c ★同一隻羊每次算出來都一樣(全家同見的根:長相不可以是隨機的)')
+  ok(g.same, '⑭d ★遊戲端與羊圈格式用同一個種子(否則同一隻羊在地圖與明信片會長不一樣)')
+
+  // 明信片與羊圈格子真的畫出那隻羊(不是退回 emoji)
+  await page.locator('#flockBtn').click({ timeout: 10000 })
+  await sleep(800)
+  const drawn = await page.evaluate(() => ({
+    imgs: document.querySelectorAll('#flockGrid img').length,
+    gold: document.querySelectorAll('#goldGrid img').length,
+    titles: [...document.querySelectorAll('#flockGrid .slot.got')].slice(0, 6).map((d) => d.title).filter((t) => /羊/.test(t)).length,
+  }))
+  ok(drawn.imgs >= 10 && drawn.gold >= 2, '⑭e ★羊圈格子畫出每一隻羊本人(不是同一個 emoji)', drawn)
+  ok(drawn.titles >= 4, '⑭f 格子的提示有寫公羊/母羊', { withSex: drawn.titles })
+  await page.screenshot({ path: `${OUT}/flock-genes.png` })
+  await page.close()
+}
+
 // ── ⑫ ★ GPS 模式下鍵盤絕不可以動座標(在戶外會看到自己憑空瞬移)────────────
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
