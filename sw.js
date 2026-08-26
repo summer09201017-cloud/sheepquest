@@ -126,13 +126,27 @@
 //                 ★ 格式實作在 ./sheepdex.js(skill sheepdex-crossite 的垂直搬運複本,勿就地改),
 //                   **一定要進 CORE**,否則離線時羊圈那一整區會自己收起來。
 //                 ★ 隱私:dex **不寫地點也不寫經緯度**(它可以用短碼上雲 ⇒ 寫了就等於把行蹤送出這支手機)。
-const CACHE = 'sheepquest-v25';
+// v26(2026-08-26):六張卡一輪 —— 🐑 羊14 跟隨小隊(已尋回的羊在地圖上排隊跟著牧人走;
+//                 串珠式=走牧人的歷史軌跡,天然吃掉 GPS 抖動;3D 與 emoji 雙後端都能跑;
+//                 ⚠ 客廳測試模式**不套抖動門檻**——那裡沒有 GPS,而 stepTo 的碎步跨不過 6m,
+//                   沿用的話在室內示範的老師永遠看不到這個功能)、
+//                 🏆 羊1 里程碑(10/25/50/75 彩帶+金句+紀念章;四支新 mp3 見下面 CORE)、
+//                 📅 羊2 今日第一隻(👑 冠冕+緞帶;日期鍵用**本地時間**,UTC 會早一天)、
+//                 📲 羊3 安裝引導鈕(Android 原生框 / iPhone 圖解 / LINE 講「裝不了」)、
+//                 ✨ 羊4 金毛櫥窗、🌅 羊11 時段氛圍(清晨/白天/黃昏/夜晚)。
+//                 ★ 羊11 的雷:**方向光顏色會直接乘在材質上,白羊會整批被染色**
+//                   (第一版黃昏 0xffb877 ⇒ 羊變褐色,自動測試全綠、截圖才看得出來)
+//                   ⇒ 方向光一律接近白,氛圍交給半球光與地圖 CSS 濾鏡。
+//                 ★ 夜晚**只換色不壓暗**:走在路上要看得清楚路名,那是安全不是美感(閘門 ⑧d 在守)。
+const CACHE = 'sheepquest-v26';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 人聲經文:一定要進 CORE,否則離線時「有朗讀鈕、沒有聲音」
   './voice/luke15-4-5.mp3', './voice/luke15-5.mp3', './voice/luke15-6.mp3',
   './voice/1sam17-37.mp3', './voice/voice-on.mp3',
   // 🎙 牧場旁白(v25;不是經文,曉臻同聲)
-  './voice/walk-start.mp3', './voice/beast-fight.mp3'];
+  './voice/walk-start.mp3', './voice/beast-fight.mp3',
+  // 🏆 里程碑金句(v26;10/25/50/75 四個台階,100 隻沿用 luke15-6)
+  './voice/luke15-4.mp3', './voice/john10-14.mp3', './voice/luke15-7.mp3', './voice/luke15-10.mp3'];
 // ⚠ 刻意**不**把 photos/*.jpg 放進 CORE:addAll 只要有一個檔 404,整個 SW 安裝就失敗,
 //   而照片是「有才用」的選配。真的放了照片、又想離線也能用,再自己把檔名加進 CORE。
 

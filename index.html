@@ -70,9 +70,18 @@
   .slot.got{border-style:solid;border-color:var(--green)}
   .slot .nm{font-size:10.5px;font-weight:700;color:#456}
   .slot.gold{border-color:var(--gold);background:#fffbe8}
+  /* 📅 羊2:今日第一隻 —— 彩色緞帶(左上角一條斜的)。★ 用 border 疊出來,零圖檔。
+     ⚠ 緞帶要 pointer-events:none,不然它會蓋掉跟隨小隊那一區的點擊區(格子點不到)。 */
+  .slot.first{border-color:#b18cff;background:linear-gradient(180deg,#f6f0ff,#fff)}
+  .slot.first::before{content:'';position:absolute;top:0;left:0;pointer-events:none;
+    border-top:16px solid #b18cff;border-right:16px solid transparent;border-top-left-radius:10px}
+  .slot{position:relative}
   .ribbon{font-size:60px;text-align:center}
   .sheepMark{font-size:26px;filter:drop-shadow(0 2px 3px #0006)}
   .youMark{font-size:26px}
+  /* 🐑 羊14 的降級標記:刻意做小又半透明——它是背景裡的一列小羊,
+     不可以搶走野生羊(那些是要點的)的注意力,也不可以擋到路名。 */
+  .escortMark{font-size:18px;opacity:.85;filter:drop-shadow(0 1px 2px #0005);pointer-events:none}
   #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:40;background:#243328;color:#fff;
     padding:8px 16px;border-radius:20px;font-weight:700;display:none;max-width:86vw;text-align:center}
 
@@ -212,6 +221,14 @@
   <!-- 🧩 v15:從 LINE/FB 內建瀏覽器開進來的,**先講**別等他按下去失敗才講。
        教會的連結都走 LINE 發,這是最多人會遇到的路徑。 -->
   <div id="inAppWarn" class="safe" style="display:none;margin-top:12px"></div>
+  <!-- 📲 羊3(0826):安裝到主畫面。以前只有一段文字說明,家長照著做不出來。
+       ★ 三條路各自不同,不可以只做一條:Android/Chrome 有原生安裝框、iPhone 只能教圖解、
+         LINE/FB 內建瀏覽器**兩條都沒有**(裝不了,只能先換瀏覽器)。
+       ★ 已經裝好的人不該再看到這顆鈕(standalone 就整區收起來)。 -->
+  <div id="installBox" style="display:none;margin-top:12px">
+    <button class="btn" id="installBtn">📲 把「尋羊記」裝到手機主畫面</button>
+    <div class="hint" id="installTip" style="margin-top:6px"></div>
+  </div>
   <!-- 📍 定位狀態(0731 修 bug 新增):舊版按下去只有「成功」或「跳一行失敗 toast」兩種結局,
        中間那 10~45 秒的等待**完全沒畫面** → 使用者以為壞了就走了。
        ★ 顯示一律寫明確的 display 值,不可用 ''(#25 css-hidden-toggle-guard 攔過的坑)。-->
@@ -263,7 +280,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v23(2026-08-12 🐑 羊圈和「牧羊人與羊群 3D」互通了=走路抓到的羊可以搬過去出戰,羊圈裡有「☁ 產生搬運短碼」;v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人走在立體地圖上都在)——羊圈(📖)裡看不到「和牧羊人與羊群 3D 互通」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v26(2026-08-26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -291,10 +308,35 @@
   <h1>📖 我的羊圈</h1>
   <div class="verse" id="flockVerse">「我告訴你們,一個罪人悔改,在天上也要這樣為他歡喜,較比為九十九個不用悔改的義人歡喜更大。」——路加福音 15:7</div>
   <div class="hint">已尋回 <b id="count2">0</b>/100 隻。金毛羊 ✨ 是稀有的——遇到要好好珍惜。</div>
+
+  <!-- 🏆 羊1(0826):里程碑紀念章。10/25/50/75/100 五個台階,拿到的亮起來、還沒到的是灰的。
+       ★ 灰的也要看得到 —— 「還有什麼在前面」正是這張卡要治的東西(中段是空的)。 -->
+  <div id="mileRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+
+  <!-- ✨ 羊4(0826):金毛羊櫥窗。6% 的稀有度做出來了,但羊圈裡待遇跟普通羊一樣=稀有感白費。
+       ★ 純排版:金毛羊照舊也留在下面那本 /100 收藏冊裡(這裡是「再展示一次」,不是搬走)。
+       ★ 一隻都沒有時整區收起來,不留一個空櫥窗嘲笑他。 -->
+  <div id="goldCase" style="display:none;margin-top:12px;border:2px solid var(--gold);border-radius:14px;
+    padding:10px 12px;background:linear-gradient(180deg,#fffbe8,#fff6d5)">
+    <div style="font-weight:800;color:#8a6b12">✨ 金毛羊櫥窗 <span id="goldNum" style="font-weight:700"></span></div>
+    <div class="flock" id="goldGrid" style="margin-top:8px"></div>
+  </div>
+
   <div class="flock" id="flockGrid"></div>
   <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn primary" id="backBtn">← 回地圖繼續找</button>
     <button class="btn" id="cardsBtn">📮 明信片匣</button>
+  </div>
+
+  <!-- 🐑 羊14(0826):跟隨小隊。選誰在地圖上跟著你走(上限 5 隻)。
+       ★ 這一區只有「誰出來」,沒有任何會影響玩法的旋鈕——它是裝飾層。 -->
+  <div id="escortBox" style="margin-top:18px;border-top:1px solid rgba(0,0,0,.12);padding-top:14px">
+    <h2 style="font-size:17px;margin:0 0 6px">🐑 跟著我走的小隊</h2>
+    <div class="hint" id="escortStat"></div>
+    <div class="flock" id="escortGrid" style="margin-top:8px"></div>
+    <label class="hint" style="display:block;margin-top:10px">
+      <input type="checkbox" id="escortSw"> 不要讓羊跟著我(地圖上只留牧人)
+    </label>
   </div>
 
   <!-- 🐑 跨站搬羊(0812 B 案)。整塊在 window.SheepDex 載不到時會被藏起來。
@@ -327,6 +369,11 @@
   <label class="hint" style="display:block;margin-top:14px">
     <input type="checkbox" id="mapColorSw"> 🗺 地圖再加一層鮮豔濾鏡(預設關;底圖已是淡彩的 CARTO Voyager,再疊會更糊、路名更難讀)
   </label>
+  <!-- 🌅 羊11:時段氛圍。預設開;不喜歡的人關得掉(裝置層偏好,和音樂/過場同慣例)。
+       ★ 文案要講清楚「不會變暗」——不然家長看到「夜晚」兩個字會擔心晚上看不見路。 -->
+  <label class="hint" style="display:block;margin-top:8px">
+    <input type="checkbox" id="todSw"> 🌅 光線跟著現在的時間走(清晨偏暖、傍晚偏橘、晚上偏藍;<b>只換顏色不會變暗</b>,路一樣看得清楚)
+  </label>
 </section>
 
 <!-- 📮 v14 明信片:帶回一隻羊就產一張(背景=剛剛那場 3D 戰鬥的畫面) -->
@@ -346,6 +393,21 @@
     <span class="hint">存的是一張小縮圖 + 羊名 + 地點 + 日期,<b>只存在這支手機裡、不會上傳</b>,最多留最近 30 張。
       不開的話,明信片只在這個畫面出現一次,離開就沒了(你隨時可以先下載)。</span>
   </label>
+</section>
+
+<!-- 🏆 羊1(0826):里程碑慶祝。彩帶 + 金句(曉臻唸) + 紀念章。
+     ★ 一定要有「繼續找」的出口鈕:自動關掉的慶祝畫面會把還沒讀完經文的孩子打斷。 -->
+<section class="panel" id="milePanel">
+  <div class="ribbon" id="mileEm">🎊</div>
+  <h1 id="mileTitle">🏆 十隻了!</h1>
+  <!-- ⚠ 這一句不可以用 .hint 的淺灰:彩帶在上面飛的時候淺灰字幾乎讀不到(截圖驗收抓到)。
+       慶祝畫面上的每一個字都要在紙花之間看得清楚。 -->
+  <div id="mileWord" style="font-size:16px;font-weight:700;line-height:1.7;max-width:min(560px,92vw);margin:0 auto"></div>
+  <div class="verse" id="mileVerse" style="margin:14px auto;max-width:min(560px,92vw)"></div>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn primary" id="mileBack">← 繼續找羊</button>
+    <button class="btn" id="mileSpeak">🔊 再唸一次</button>
+  </div>
 </section>
 
 <!-- 📮 明信片匣 -->
@@ -392,6 +454,124 @@ const persist = () => { try { localStorage.setItem('sheepquest-v1', JSON.stringi
    ★ 網路壞掉/離線也不會有事:圖磚是非同步載的,載不到就一直是草地(見 buildMapGround)。*/
 const mapOn = () => save.mapGround !== false;
 const flockCount = () => Object.keys(save.flock).length;
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   🐑 羊14(2026-08-26):尋回的羊排成小隊,跟在牧人身後走
+   ══════════════════════════════════════════════════════════════════════════════
+   治的是:抓回來就只進羊圈,**走在路上完全看不到成果**。
+
+   ★ 這一張**純裝飾、零邏輯**:不碰抓羊判定、不碰 save.flock、不擋地圖。
+     刪掉整段,遊戲的每一條規則都不變 —— 這是它可以放心做的前提。
+
+   ★★ 跟隨用「串珠式」而不是「追著牧人跑」:
+     存牧人走過的最近 N 個位置(TRAIL),第 i 隻羊就站在 TRAIL[i × 間距] 那一格。
+     為什麼這樣做:GPS 每筆 fix 都在抖(±5~40m),**羊若直接追目前座標,
+     會跟著抖動鬼畜地彈來彈去**;走歷史軌跡等於天然低通濾波,羊走的是
+     「牧人真的走過的那條線」,看起來就是一列小隊安穩地跟著。
+   ★ 只有真的走了 STEP_M 公尺才推進一格 —— 站著不動時 GPS 仍會抖,
+     不設門檻的話小隊會原地自轉(而且會一直 triggerRepaint 燒電)。
+
+   ⚠ 安全前提(0825 使用者立卡時就寫死的):羊在畫面上只能「瞄一眼就好」,
+     **不做任何需要盯著看的互動** —— 不可點、沒有數字、不擋路。邊走邊玩的遊戲,
+     任何「需要盯著螢幕」的東西都是安全問題,不是功能。 */
+const ESCORT_MAX = 5;                       // 上限 5 隻(與「牧羊人與羊群 3D」的伴行數一致)
+const TRAIL_STEP_M = 6;                     // 真實 GPS:走滿 6m 才推進一格(抖動門檻)
+const TRAIL_STEP_DEMO_M = 1.5;              // 客廳測試模式:見下面那段註解
+const TRAIL_GAP = 2;                        // 每隻羊隔幾格(2 格 ≈ 12m,60° 俯角下看起來剛好是一列)
+const TRAIL = [];                           // [{lat,lng}, …] 新的在前面
+/* 這一格該不該推進?**頂層純函數**,驗收量尺與遊戲共用同一份
+   (照艦隊慣例:量尺一旦自己複製一份規則,量出來的東西就是假的)。
+   ★★ 門檻分兩種,而且理由不是「讓測試好過」:
+     · 真實 GPS(6m):抖動典型 ±5m,門檻低於它,羊就會跟著雜訊鬼畜。
+     · 客廳測試模式(1.5m):**那裡根本沒有 GPS**,座標是按鈕算出來的、完全確定;
+       而 stepTo 的步長會隨著接近目標遞減到 3m 以下 ⇒ 沿用 6m 的話,
+       在室內示範的老師與家長**永遠看不到跟隨小隊**(功能等於不存在)。
+     ⇒ 抖動門檻只該套在真的會抖的來源上。 */
+function trailAdvances(prev, next, isDemo) {
+  if (!prev) return true;
+  return distM(prev, next) >= (isDemo ? TRAIL_STEP_DEMO_M : TRAIL_STEP_M);
+}
+save.escort = Array.isArray(save.escort) ? save.escort : null;   // null = 還沒選過 ⇒ 用最近抓到的
+/* 誰出來跟隨:使用者選過就照他選的(過濾掉已不存在的羊),沒選過=最近抓到的 5 隻。
+   ★ 為什麼要過濾:羊圈可以被匯入覆蓋,選單裡的 id 可能已經不在 flock 裡
+     ⇒ 不過濾就會有「跟著一隻空氣」的破圖(而且不會報錯)。 */
+function escortIds() {
+  const has = (id) => Object.prototype.hasOwnProperty.call(save.flock, id);
+  if (save.escort) return save.escort.filter(has).slice(0, ESCORT_MAX);
+  return Object.keys(save.flock)
+    .sort((a, b) => (save.flock[b].ts || 0) - (save.flock[a].ts || 0))
+    .slice(0, ESCORT_MAX);
+}
+const escortOn = () => save.escortOff !== true;        // 預設開;羊圈裡關得掉(裝置層偏好)
+/* 推進軌跡:回傳「這一步有沒有真的走動」(給呼叫端決定要不要重畫) */
+function trailPush(lat, lng) {
+  if (!trailAdvances(TRAIL[0], { lat, lng }, demo)) return false;
+  TRAIL.unshift({ lat, lng });
+  TRAIL.length = Math.min(TRAIL.length, ESCORT_MAX * TRAIL_GAP + 4);
+  return true;
+}
+/* 第 i 隻羊該站哪裡:軌跡還不夠長(剛開場、才走兩步)就先不要冒出來 ——
+   硬塞會讓全部的羊疊在牧人腳下變成一團。回 null = 這隻先不畫。 */
+function escortSpot(i) {
+  const idx = (i + 1) * TRAIL_GAP;
+  return TRAIL[idx] || null;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   🏆 羊1(2026-08-26):里程碑慶祝 —— 10 / 25 / 50 / 75 隻
+   ══════════════════════════════════════════════════════════════════════════════
+   治的是:目標 100 隻,但 **10 到 99 之間完全沒有台階**,中段是空的。
+   100 隻的「大歡喜」提前分期發放:彩帶 + 曉臻唸一句金句 + 羊圈蓋紀念章。
+
+   ★ 五個台階=五句**不同**的經文(刻意避開每抓一隻都會唸的 路 15:5,
+     否則走到台階聽到的還是同一句 = 慶祝感歸零)。整條線是路加 15 的弧:
+     去找(15:4)→ 好牧人認得羊(約 10:14)→ 天上歡喜(15:7)→ 使者面前歡喜(15:10)
+     → 一同歡喜(15:6,100 隻,既有)。
+   ★ 全部用 cuv MCP 逐句查驗過和合本原文(2026-08-26)。
+   ★★ `say` 必須與 voice/*.mp3 烤進去的唸稿**逐字相同**(含中文數字出處)——
+     漂了不會報錯,只會唸出跟畫面上不一樣的句子(而且沒有人會發現)。
+
+   ⚠ **一個台階只慶祝一次**:記在 save.miles。少了它,羊圈匯入/刪羊讓數字上下擺盪時
+     會反覆轟同一場彩帶(而且每次都唸一遍經文)。 */
+const MILESTONES = [
+  { n: 10, ref: '路 15:4', em: '🐑',
+    verse: '「你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?」——路加福音 15:4',
+    say: '你們中間誰有一百隻羊失去一隻,不把這九十九隻撇在曠野、去找那失去的羊,直到找著呢?路加福音十五章四節。',
+    word: '十隻了!你已經走出去找了——牧人就是這樣一隻一隻找回來的。' },
+  { n: 25, ref: '約 10:14', em: '🧑‍🌾',
+    verse: '「我是好牧人;我認識我的羊,我的羊也認識我。」——約翰福音 10:14',
+    say: '我是好牧人;我認識我的羊,我的羊也認識我。約翰福音十章十四節。',
+    word: '二十五隻!主耶穌認得每一隻羊的名字,也認得你。' },
+  { n: 50, ref: '路 15:7', em: '🎉',
+    verse: '「一個罪人悔改,在天上也要這樣為他歡喜,較比為九十九個不用悔改的義人歡喜更大。」——路加福音 15:7',
+    say: '一個罪人悔改,在天上也要這樣為他歡喜,較比為九十九個不用悔改的義人歡喜更大。路加福音十五章七節。',
+    word: '一半了!你每找回一隻,天上就歡喜一次。' },
+  { n: 75, ref: '路 15:10', em: '✨',
+    verse: '「一個罪人悔改,在神的使者面前也是這樣為他歡喜。」——路加福音 15:10',
+    say: '一個罪人悔改,在神的使者面前也是這樣為他歡喜。路加福音十五章十節。',
+    word: '七十五隻!再一段路就滿了,天使們都在旁邊看著呢。' },
+];
+save.miles = save.miles || {};              // {台階數: 慶祝時間} —— 一個台階只慶祝一次
+/* 這次抓完有沒有跨過某個台階?回 null 或那張台階卡。
+   ★ 用「>= n 且沒慶祝過」而不是「=== n」:羊圈匯入可能一次多好幾隻,
+     用等號會整個跳過台階(而且是靜靜跳過)。 */
+function milestoneHit(n) {
+  for (const m of MILESTONES) if (n >= m.n && !save.miles[m.n]) return m;
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   📅 羊2(2026-08-26):今日第一隻 —— 每天第一隻羊戴金冠、繫彩帶
+   ══════════════════════════════════════════════════════════════════════════════
+   治的是:想不起來要開。零伺服器,一個日期鍵就夠。
+   ⚠ 日期鍵一律用**本地時間**組,不可以用 toISOString()(那是 UTC,
+     台灣時間早上 8 點前會被算成前一天 ⇒ 使用者早上出門抓的第一隻拿不到冠冕,
+     而且錯的方向是「悄悄少給」——沒有人會來回報)。艦隊踩過這個雷。 */
+function todayKey(d) {
+  const t = d || new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
+const isDayFirst = () => save.dayFirst !== todayKey();   // 今天還沒抓過 ⇒ 下一隻就是「今日第一隻」
 
 /* ══════════════════════════════════════════════════════════════════════════════
    🐑 跨站羊圈 hfpc-sheepdex-v1(0812:B 案「兩站的羊互通」)
@@ -454,6 +634,11 @@ const VOICE = {                          // 經文出處 → 預烤人聲檔(內
   '路 15:5':   './voice/luke15-5.mp3',
   '路 15:6':   './voice/luke15-6.mp3',
   '撒上 17:37': './voice/1sam17-37.mp3',
+  /* 🏆 羊1 里程碑金句(2026-08-26):10/25/50/75 四個台階各一句,100 隻沿用 路 15:6 */
+  '路 15:4':   './voice/luke15-4.mp3',
+  '約 10:14':  './voice/john10-14.mp3',
+  '路 15:7':   './voice/luke15-7.mp3',
+  '路 15:10':  './voice/luke15-10.mp3',
   '_on':       './voice/voice-on.mp3',
   '_walk':     './voice/walk-start.mp3',   // 旁白:定位到、出發(不是經文,曉臻同聲)
   '_beast':    './voice/beast-fight.mp3',  // 旁白:搶救戰開場
@@ -823,7 +1008,7 @@ async function boot3d() {
   try { init3d(); } catch (e) { fallbackToFlat('init3d throw: ' + e); return; }
   afterMapSwap();
 }
-function afterMapSwap() { if (pos) { youSet(pos.lat, pos.lng); refreshSheep(); } }
+function afterMapSwap() { if (pos) { youSet(pos.lat, pos.lng); refreshSheep(); } applyTod(); }
 function init3d() {
   mapIs3d = true;
   map = new maplibregl.Map({
@@ -907,9 +1092,69 @@ function pastelize() {
      立體地圖照樣能玩(和羊9 同一條「不能因為漂亮就壞掉」的路)。 */
 let charReady = false, charT = null, charLayerOn = false;
 const CHAR = {
-  scale: 30, oLat: 0, oLng: 0, shep: null, sheep: [], animUntil: 0, face: 0, t0: 0,
+  scale: 30, oLat: 0, oLng: 0, shep: null, sheep: [], escort: [], animUntil: 0, face: 0, t0: 0,
+  lights: null,                         // 🌅 羊11:{hemi,dir,rim} —— 時段氛圍換的就是這三盞
 };
 const use3dChars = () => mapIs3d && charReady;
+
+/* ── 🌅 羊11(2026-08-26):時段氛圍 —— 光線與影子方向跟著真實時間走 ──
+   清晨偏暖、正午白、黃昏橘紅、夜晚偏藍;方向光的方位角照太陽走(東 → 南 → 西),
+   所以人物在早上與傍晚的影子方向是相反的。
+
+   ★★ **可讀性優先於好看**(這條是 v16 換 CARTO Voyager 時就定下的,不是新規矩):
+     這是走在路上要看的地圖 —— 夜晚**只做輕微冷調**,絕不壓暗。
+     真的把畫面調暗,晚上出門的孩子就看不清楚路名與羊在哪,那是安全問題不是美感問題。
+   ★ 影響的只有「打光」:羊的位置、抓羊距離、任何判定都不碰(純視覺層)。
+   ★ 關得掉(save.tod === false),裝置層偏好、不進備份鏈 —— 與音樂/過場同慣例。 */
+/* ⚠⚠ **方向光的顏色會直接乘在材質上,而羊是純白的** ⇒ 光一飽和,整群羊就變成
+   那個顏色。第一版黃昏用 0xffb877,截圖一看:白羊整批變成褐色,像換了一種動物
+   (自動測試全綠 —— 它只問「四個時段顏色有沒有不同」,不會問「羊還是不是白的」)。
+   ⇒ 鐵則:**方向光一律接近白**(只帶一點色溫),氛圍交給 ①半球光的 sky/ground
+     ②平面地圖的 CSS 濾鏡 —— 那兩層都不會把主角染色。 */
+const TOD = [
+  { k: 'dawn',  h: [5, 8],   sky: 0xffe4c4, gnd: 0x8fae7a, dir: 0xfff0dc, int: 0.80, az: 1.25, el: 0.35, tint: 'saturate(1.05) sepia(.10) brightness(1.02)' },
+  { k: 'day',   h: [8, 16],  sky: 0xffffff, gnd: 0x8fae7a, dir: 0xffffff, int: 0.85, az: 0.60, el: 0.95, tint: '' },
+  { k: 'dusk',  h: [16, 19], sky: 0xffd4b0, gnd: 0x9a8f6a, dir: 0xffe3c8, int: 0.78, az: -1.25, el: 0.32, tint: 'saturate(1.10) sepia(.14) hue-rotate(-6deg)' },
+  { k: 'night', h: [19, 5],  sky: 0xd6e3ff, gnd: 0x6f7f8f, dir: 0xeaf1ff, int: 0.66, az: -0.40, el: 0.80, tint: 'saturate(.92) hue-rotate(6deg) brightness(1.00)' },
+];
+const TOD_NAME = { dawn: '清晨', day: '白天', dusk: '黃昏', night: '夜晚' };
+const todOn = () => save.tod !== false;
+/* 驗收用的「假裝現在幾點」(__sqmap.setHour)。★ 只影響打光,不影響任何玩法判定;
+   正常玩的時候永遠是 null ⇒ 走真實時間。 */
+let _todFake = null;
+function todNow(hour) {
+  if (!todOn()) return TOD[1];                     // 關掉=永遠白天光(=羊10 原本的樣子)
+  const h = hour != null ? hour : (_todFake != null ? _todFake : new Date().getHours());
+  for (const t of TOD) {
+    const [a, b] = t.h;
+    if (a < b ? (h >= a && h < b) : (h >= a || h < b)) return t;
+  }
+  return TOD[1];
+}
+/* 把時段套到 3D 人物層的三盞燈上(半球光=環境、方向光=太陽、邊光=補) */
+function applyTod() {
+  const t = todNow();
+  try {
+    const L3 = CHAR.lights;
+    if (L3 && charT) {
+      L3.hemi.color = new charT.Color(t.sky);
+      L3.hemi.groundColor = new charT.Color(t.gnd);
+      L3.dir.color = new charT.Color(t.dir);
+      L3.dir.intensity = t.int;
+      /* 影子方向=太陽方位角:早上從東邊照(az>0)、傍晚從西邊(az<0)。
+         ⚠ 光源位置要**離場景夠遠**(×6)——太近的話不同羊被打到的角度差很多,
+           看起來像每隻羊各自有一顆太陽。 */
+      L3.dir.position.set(Math.sin(t.az) * 6, 3 + t.el * 5, Math.cos(t.az) * 6);
+    }
+  } catch (e) { /* 燈光調不動絕不可以影響玩 */ }
+  /* 平面地圖(Leaflet 圖磚)走 CSS 濾鏡;立體地圖的圖磚不套(向量樣式已經是粉彩,
+     再疊濾鏡會把路名弄糊——同 v16 那條「可讀性優先」)。 */
+  try {
+    const el = $('map');
+    if (el) el.style.filter = (!mapIs3d && todOn()) ? t.tint : '';
+  } catch (e) {}
+  if (map && mapIs3d) { try { map.triggerRepaint(); } catch (e) {} }
+}
 function metersFrom(lat, lng) {                       // → [three.x(東), three.z(南)]
   const e = (lng - CHAR.oLng) * 111320 * Math.cos(CHAR.oLat * Math.PI / 180);
   const n = (lat - CHAR.oLat) * 110574;
@@ -925,9 +1170,10 @@ async function addCharLayer() {
     onAdd(m, gl) {
       this.cam = new T3.Camera();
       this.scene = new T3.Scene();
-      this.scene.add(new T3.HemisphereLight(0xffffff, 0x8fae7a, 1.15));
+      const hemi = new T3.HemisphereLight(0xffffff, 0x8fae7a, 1.15); this.scene.add(hemi);
       const dl = new T3.DirectionalLight(0xffffff, 0.85); dl.position.set(3, 6, 4); this.scene.add(dl);
       const rim = new T3.DirectionalLight(0xdfefff, 0.5); rim.position.set(-3, 4.5, -4); this.scene.add(rim);
+      CHAR.lights = { hemi, dir: dl, rim };            // 🌅 羊11:留著給 applyTod 換色/換方位
       this.ren = new T3.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
       this.ren.autoClear = false;
       charReady = true; CHAR.t0 = performance.now();
@@ -935,6 +1181,7 @@ async function addCharLayer() {
       /* DOM 的 🧑‍🌾 標記換成 3D 牧人就要收掉——3D 人物上場那一刻就收,
          不能等下次 youSet(那要等玩家走一步,中間頭上會多一個平面小人)。 */
       if (youMarker) { try { youMarker.remove(); } catch (e) {} youMarker = null; }
+      applyTod();                                      // 🌅 羊11:人物層一上場就套當下時段的光
       refreshSheep();                                  // 換成 3D 版的羊群
     },
     render(gl, args) {
@@ -971,12 +1218,35 @@ async function addCharLayer() {
 function charScene() { return CHAR.layer && CHAR.layer.scene; }
 function clearChars() {
   const sc = charScene(); if (!sc) return;
-  for (const o of [CHAR.shep, ...CHAR.sheep]) {
+  for (const o of [CHAR.shep, ...CHAR.sheep, ...CHAR.escort]) {
     if (!o) continue;
     sc.remove(o);
     o.traverse && o.traverse(n => { n.geometry && n.geometry.dispose(); n.material && n.material.dispose(); });
   }
-  CHAR.shep = null; CHAR.sheep = [];
+  CHAR.shep = null; CHAR.sheep = []; CHAR.escort = [];
+}
+/* 🐑 羊14:把跟隨小隊擺到牧人走過的軌跡上(3D 版)。
+   ★ 每次 syncChars 都整批重建(和野生羊同一個作法)——小隊最多 5 隻,重建成本可以忽略,
+     而「就地搬移」要另外維護一份 id→mesh 的對照表,那是第二份真相。
+   ★ 羊的**朝向**是「往牧人的方向」= 牠前面那一格,不是牧人現在的位置:
+     用現在的位置會讓最後一隻羊在轉彎時整隻橫過來(牠其實還在上一個彎道裡)。 */
+function syncEscort() {
+  const sc = charScene(); if (!sc) return;
+  if (!escortOn()) return;
+  const ids = escortIds();
+  for (let i = 0; i < ids.length; i++) {
+    const spot = escortSpot(i); if (!spot) break;        // 軌跡還不夠長 ⇒ 後面的也不用試
+    const f = save.flock[ids[i]]; if (!f) continue;
+    const m = B3D.newSheep(); if (!m) break;             // three 沒載到就整批不畫(emoji 那條會接手)
+    const [x, z] = metersFrom(spot.lat, spot.lng);
+    m.scale.setScalar(CHAR.scale * (f.gold ? 1.05 : 0.9));   // 比野生羊小一點:牠們是隨行的,不該搶戲
+    m.position.set(x, 0, z);
+    const ahead = i === 0 ? { lat: CHAR.oLat, lng: CHAR.oLng } : (escortSpot(i - 1) || { lat: CHAR.oLat, lng: CHAR.oLng });
+    const [ax, az] = metersFrom(ahead.lat, ahead.lng);
+    m.rotation.y = Math.atan2(ax - x, az - z);
+    if (f.gold) m.traverse(n => { if (n.isMesh && n.material && n.material.color) { n.material = n.material.clone(); n.material.color.offsetHSL(0.11, 0.45, 0.06); } });
+    sc.add(m); CHAR.escort.push(m);
+  }
 }
 /* 依目前羊群清單重建 3D 人物(牧人固定在原點=玩家腳下) */
 function syncChars(list) {
@@ -1015,6 +1285,7 @@ function syncChars(list) {
       if (b) { b.scale.setScalar(CHAR.scale * 0.72); b.position.set(x + 7, 0, z + 5); b.rotation.y = Math.atan2(-x, -z); sc.add(b); CHAR.sheep.push(b); beasts++; }
     }
   }
+  syncEscort();                          // 🐑 羊14:已尋回的羊排隊跟在牧人身後
   if (map) map.triggerRepaint();
 }
 /* 3D 標記=DOM 元素(和 Leaflet divIcon 同一份 HTML/CSS,長一樣) */
@@ -1024,6 +1295,7 @@ function mk3d(html, lat, lng) {
 }
 /* ── 包裝層:呼叫端只認這四個,不認後端 ── */
 function youSet(lat, lng) {
+  trailPush(lat, lng);                 // 🐑 羊14:先推軌跡(3D 與平面兩條路都要用到)
   /* 🗺 羊10:3D 牧人上場後,DOM 的 🧑‍🌾 標記要收起來(不然頭上多一個平面小人)。
      並記下前進方向與「還在走」的時間窗 → render 才知道要彈跳+轉向+連續重繪。 */
   if (use3dChars()) {
@@ -1038,6 +1310,27 @@ function youSet(lat, lng) {
   }
   if (!youMarker) return;
   if (mapIs3d) youMarker.setLngLat([lng, lat]); else youMarker.setLatLng([lat, lng]);
+}
+/* 🐑 羊14 的降級路:沒有 3D 人物層時(平面地圖、或 three.js 載不到)用小 emoji 標記。
+   ★ 立卡時就寫死的條件:「立體/平面雙後端都要能退化」——只做 3D 那條的話,
+     選了「平面(省電)」的人與老手機**完全看不到這個功能**,而他們正是最需要成就感的那群。
+   ★ 標記刻意做小(18px)且半透明:它是背景裡的一列小羊,不可以蓋住野生羊(那是要點的)。 */
+function escortFlat() {
+  if (!escortOn() || !map) return;
+  const ids = escortIds();
+  for (let i = 0; i < ids.length; i++) {
+    const spot = escortSpot(i); if (!spot) break;
+    const f = save.flock[ids[i]]; if (!f) continue;
+    const html = `<div class="escortMark">${f.gold ? '✨' : ''}${f.e}</div>`;
+    if (mapIs3d) {
+      const el = document.createElement('div'); el.innerHTML = html;
+      sheepMarkers.push(new maplibregl.Marker({ element: el.firstChild }).setLngLat([spot.lng, spot.lat]).addTo(map));
+    } else {
+      sheepMarkers.push(L.marker([spot.lat, spot.lng],
+        { icon: L.divIcon({ className: '', html, iconSize: [20, 20], iconAnchor: [10, 10] }), interactive: false })
+        .addTo(map));
+    }
+  }
 }
 function mapPanTo(lat, lng) {
   if (!map) return;
@@ -1080,6 +1373,26 @@ try {
     is3d: () => mapIs3d, booting: () => mapBooting, failed: () => mlFailed, map: () => map,
     chars: () => ({ ready: charReady, shep: !!CHAR.shep, sheep: CHAR.sheep.length, scale: CHAR.scale, walking: performance.now() < CHAR.animUntil }),
     setScale: (v) => { CHAR.scale = v; if (window._sheepList) syncChars(window._sheepList); },   // 給驗收腳本調大小用
+    /* 🐑 羊14 / 🌅 羊11 的驗收把手(只讀;setHour 是唯一的寫,而它只換打光不碰玩法) */
+    escort: () => ({
+      on: escortOn(), ids: escortIds(), trail: TRAIL.length,
+      meshes: CHAR.escort.length,
+      flatMarks: document.querySelectorAll('.escortMark').length,
+    }),
+    tod: () => {
+      const t = todNow();
+      return { on: todOn(), k: t.k, int: t.int, az: t.az,
+        dirColor: CHAR.lights && CHAR.lights.dir ? '#' + CHAR.lights.dir.color.getHexString() : null,
+        dirPos: CHAR.lights && CHAR.lights.dir ? [+CHAR.lights.dir.position.x.toFixed(2), +CHAR.lights.dir.position.z.toFixed(2)] : null,
+        mapFilter: ($('map') && $('map').style.filter) || '' };
+    },
+    /* 驗收用:假裝現在是幾點(真的等到黃昏才驗=沒有人驗得動) */
+    setHour: (h) => { _todFake = h; applyTod(); return todNow().k; },
+    /* 驗收用:直接餵一筆座標給軌跡(回傳有沒有推進) */
+    pushTrail: (lat, lng) => trailPush(lat, lng),
+    /* 抖動門檻本體(頂層純函數,量尺與遊戲共用同一份規則)——
+       isDemo 明講,才驗得到「真實 GPS 擋抖動 / 客廳模式不套抖動門檻」兩種行為 */
+    advances: (prev, next, isDemo) => trailAdvances(prev, next, isDemo),
   };
 } catch (e) {}
 function refreshSheep() {
@@ -1093,7 +1406,7 @@ function refreshSheep() {
   /* 🗺 羊10:3D 人物就位時,羊群改用 3D 模型(emoji 標記整批不畫);
      three 載不到 → use3dChars() 是 false → 走下面原本的 emoji 路,一行都不用改。 */
   if (use3dChars()) { syncChars(list); }
-  else if (map && !mapBooting) for (const s of list) {
+  else if (map && !mapBooting) { escortFlat(); for (const s of list) {
     const html = `<div class="sheepMark">${s.beast ? s.beast.e : ''}${s.gold ? '✨' : ''}${s.kind.e}</div>`;
     const tip = `${s.beast ? s.beast.n + '叼著' : ''}${s.name}・${Math.round(s.d)}m`;
     if (mapIs3d) {
@@ -1107,7 +1420,7 @@ function refreshSheep() {
       mk.on('click', () => openSheet(s));        // 📋 v14 ④:點羊 → 詳情面板(皮克敏點蘑菇那張)
       sheepMarkers.push(mk);
     }
-  }
+  } }
   let near = list[0];
   // 練習模式鎖定:被 ⚔️ 鎖住的那隻優先當「最近的羊」,不然旁邊有普通羊更近時會點成普通套索
   if (demo && demoTarget && !save.flock[demoTarget.id]) {
@@ -1599,8 +1912,127 @@ let _afterCard = null;
 function afterCard(msg, ms) { _afterCard = [msg, ms]; }
 $('pcBack').onclick = () => {
   $('pcPanel').classList.remove('on');
+  /* 🏆 羊1:里程碑的優先序高於一般 toast —— 關掉明信片先看慶祝,toast 留到慶祝之後。
+     (兩個同時發會變成 toast 蓋在慶祝畫面上,而且慶祝畫面本來就在講同一件事) */
+  if (_afterMile) { const m = _afterMile; _afterMile = null; return showMilestone(m); }
   if (_afterCard) { toast(_afterCard[0], _afterCard[1]); _afterCard = null; }
 };
+
+/* ══ 🎊 彩帶(羊1;收割 skill win-confetti,改成本檔的傳統 script 寫法)══════════
+   ★ 零相依、可離線、**尊重 prefers-reduced-motion**(會暈的孩子與老師)。
+   ★ pointer-events:none —— 慶祝畫面的按鈕在彩帶底下,要點得到。
+   ★ 會自己清乾淨:到時間就移除 canvas 與 resize 監聽,不留東西在畫面上。 */
+const CONFETTI = {
+  go(opt) {
+    try {
+      const o = opt || {};
+      if (matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;   // 減少動態=不放
+      const dur = o.duration || 2400, colors = ['#ffd479', '#ff7a59', '#5ec5c5', '#7ec850', '#b18cff', '#ff9ec4', '#ffffff'];
+      const cv = document.createElement('canvas');
+      cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60';
+      document.body.appendChild(cv);
+      const ctx = cv.getContext('2d');
+      let dpr = Math.min(devicePixelRatio || 1, 2);
+      const resize = () => { dpr = Math.min(devicePixelRatio || 1, 2); cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; };
+      resize(); addEventListener('resize', resize);
+      const rnd = (a, b) => a + Math.random() * (b - a), parts = [];
+      const t0 = performance.now();
+      let raf = 0;
+      const tick = (now) => {
+        const el = now - t0;
+        /* ⚠ 每幀 5 片太密:截圖驗收看到紙花把金句整段壓住(慶祝的那幾秒正是要讀經文的時候)。
+           降到 2 片 —— 仍然滿天飛,但字一直讀得到。 */
+        if (el < dur) for (let i = 0; i < 2; i++) parts.push({
+          x: rnd(0, innerWidth), y: rnd(-40, -10), vx: rnd(-1.6, 1.6), vy: rnd(2, 5),
+          w: rnd(6, 11), h: rnd(8, 15), rot: rnd(0, 6.28), vr: rnd(-.25, .25),
+          c: colors[(Math.random() * colors.length) | 0], sway: rnd(0, 6.28),
+        });
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.save(); ctx.scale(dpr, dpr);
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const p = parts[i];
+          p.vy += 0.12; p.sway += 0.05;
+          p.x += p.vx + Math.sin(p.sway) * 0.6; p.y += p.vy; p.rot += p.vr;
+          if (p.y > innerHeight + 30) { parts.splice(i, 1); continue; }
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+        }
+        ctx.restore();
+        if (el < dur + 2600 && parts.length) raf = requestAnimationFrame(tick);
+        else { cancelAnimationFrame(raf); removeEventListener('resize', resize); try { cv.remove(); } catch (e) {} }
+      };
+      raf = requestAnimationFrame(tick);
+    } catch (e) { /* 慶祝失敗絕不可以影響遊戲 */ }
+  },
+};
+
+/* ══ 🏆 羊1:里程碑慶祝畫面 ══════════════════════════════════════════════════
+   ★ **蓋章在這裡記,不在 caught() 記**:記在 caught() 的話,使用者若在明信片畫面
+     直接把 App 關掉,台階就被標成慶祝過了,而他一次都沒看到 = 靜靜吃掉一個台階。 */
+let _afterMile = null;
+function showMilestone(m) {
+  save.miles[m.n] = Date.now(); persist();
+  $('mileEm').textContent = m.em;
+  $('mileTitle').textContent = `🏆 ${m.n} 隻了!`;
+  $('mileWord').textContent = m.word;
+  $('mileVerse').textContent = m.verse;
+  $('milePanel').classList.add('on');
+  CONFETTI.go({ duration: 2600 });
+  SFX.home();
+  TTS.speakScripture(m.say, { ref: m.ref });
+  $('mileSpeak').onclick = () => TTS.speakScripture(m.say, { ref: m.ref });
+  $('mileBack').onclick = () => {
+    $('milePanel').classList.remove('on');
+    if (_afterCard) { toast(_afterCard[0], _afterCard[1]); _afterCard = null; }
+  };
+}
+
+/* 🔬 羊1/羊2 的驗收把手(同 __sqmap 慣例)。★ show() 是真的把畫面叫出來,
+   驗收才驗得到「畫面上有沒有那句金句」——只讀資料證明不了它畫得出來。 */
+try {
+  window.__sqmile = { hit: (n) => milestoneHit(n == null ? flockCount() : n), show: showMilestone, list: () => MILESTONES };
+  window.__sqday = { isFirst: isDayFirst, key: todayKey };
+} catch (e) {}
+
+/* ══ 📲 羊3:安裝到主畫面(收割 skill pwa-install-button)════════════════════
+   三條路完全不同,而且**不可以只做 Android 那條**(教會多數家長是 iPhone):
+     · Android/Chrome:beforeinstallprompt → 原生安裝框(最順)
+     · iPhone/Safari:沒有 API,只能顯示圖解步驟(分享鈕 → 加入主畫面)
+     · LINE/FB 內建瀏覽器:**兩條都沒有** ⇒ 先教換瀏覽器,不然按了什麼都不會發生
+   ★ 已經裝好(standalone)就整區收起來 —— 對已安裝的人喊「來安裝」是雜訊。 */
+const IS_STANDALONE = (matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+let _installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();                          // 攔下來自己挑時機,不讓瀏覽器自己跳
+  _installPrompt = e;
+  paintInstall();
+});
+addEventListener('appinstalled', () => { _installPrompt = null; paintInstall(); toast('📲 裝好了!以後從主畫面的圖示打開就好', 3600); });
+function paintInstall() {
+  const box = $('installBox'); if (!box) return;
+  if (IS_STANDALONE) { box.style.display = 'none'; return; }   // 已經是 App 了
+  box.style.display = 'block';
+  const tip = $('installTip');
+  if (IN_APP) { tip.innerHTML = `在 <b>${IN_APP.n}</b> 裡面<b>裝不了</b>——請先 <b>${IN_APP.m}</b>,再按這顆鈕。`; return; }
+  if (_installPrompt) { tip.textContent = '按一下就會跳出安裝框,裝好以後不用開瀏覽器、離線也能玩。'; return; }
+  if (IS_IOS) { tip.innerHTML = 'iPhone/iPad:按 Safari 最下面的<b>分享鈕</b>(方框往上的箭頭)→ 往下捲 →「<b>加入主畫面</b>」。'; return; }
+  tip.textContent = '按一下看怎麼裝(裝好以後不用開瀏覽器、離線也能玩)。';
+}
+$('installBtn').onclick = async () => {
+  if (IN_APP) { toast(`請先 ${IN_APP.m},在 ${IN_APP.n} 裡面裝不了`, 4200); return; }
+  if (_installPrompt) {
+    /* ⚠ prompt() 一定要在使用者手勢裡呼叫,而且**一個 event 只能用一次** ——
+       用完就丟掉,重按會拋 InvalidStateError(症狀是「第二次按沒反應」)。 */
+    const p = _installPrompt; _installPrompt = null;
+    try { p.prompt(); const r = await p.userChoice; if (r && r.outcome !== 'accepted') toast('沒關係,想裝的時候再按一次就好', 3000); }
+    catch (e) { toast('這台裝置沒辦法直接跳安裝框,請用瀏覽器選單裡的「加到主畫面」', 4200); }
+    paintInstall();
+    return;
+  }
+  if (IS_IOS) { toast('iPhone:按下面的分享鈕 ⬆️ → 往下捲 → 「加入主畫面」', 5200); return; }
+  toast('用瀏覽器右上角的選單(⋮)→「安裝應用程式」或「加到主畫面」', 5200);
+};
+try { paintInstall(); } catch (e) {}
 $('pcKeep').onchange = (e) => {
   save.cardsKeep = !!e.target.checked; persist();
   toast(save.cardsKeep ? '📮 之後的明信片會存進明信片匣(只存在這支手機)' : '📮 不再存明信片', 3000);
@@ -1625,6 +2057,17 @@ $('mapColorSw').onchange = (e) => {
   $('map').classList.toggle('pikmin', save.pikminMap);
   toast(save.pikminMap ? '🗺 地圖改成鮮豔配色' : '🗺 地圖改回原本的街道圖', 2400);
 };
+/* 🌅 羊11:時段氛圍開關 */
+$('todSw').checked = todOn();
+$('todSw').onchange = (e) => {
+  save.tod = !!e.target.checked; persist();
+  applyTod();
+  toast(save.tod ? `🌅 光線跟著時間走(現在是${TOD_NAME[todNow().k]})` : '🌅 光線固定成白天', 2800);
+};
+/* 跨時段自動換(不用重開 App)。★ 五分鐘一次就夠:時段邊界一小時才一次,
+   查得太密只是白燒電;而且 todNow() 是純函數,重複套用不會累積誤差。 */
+let _todK = todNow().k;
+setInterval(() => { const k = todNow().k; if (k !== _todK) { _todK = k; applyTod(); } }, 300000);
 $('cardsBack').onclick = () => { $('cardsPanel').classList.remove('on'); openFlock(); };
 $('cardsClear').onclick = () => {
   if (!(save.cards || []).length) return;
@@ -1758,8 +2201,13 @@ function caught() {
   if (phase === 'done') return;                   // 防連按重複結算(經文被唸兩次、trust 溢出)
   phase = 'done';
   cancelAnimationFrame(raf);
+  /* 📅 羊2:今天的第一隻戴金冠 —— 存進羊裡(而不是只顯示一次),
+     這樣他明天翻羊圈還看得到「昨天那隻是我今天第一隻找回來的」。 */
+  const dayFirst = isDayFirst();
   save.flock[target.id] = { name: target.name, e: target.kind.e, gold: target.gold, ts: Date.now(),
-    rescued: target.beast ? target.beast.n : null };   // 從獸口中救回來的,羊圈裡會標 ⚔️
+    rescued: target.beast ? target.beast.n : null,     // 從獸口中救回來的,羊圈裡會標 ⚔️
+    first: dayFirst || undefined };                    // 👑 今日第一隻(undefined ⇒ 不進 JSON,舊存檔零遷移)
+  if (dayFirst) save.dayFirst = todayKey();
   persist();
   /* 🐑 同一隻羊也寫進跨站羊圈(可以搬去「牧羊人與羊群 3D」出戰)。
      ★ 包 try:圖鑑寫失敗(私密模式/容量爆)絕不可以害這一場結算失敗——羊已經帶回家了。 */
@@ -1771,9 +2219,9 @@ function caught() {
   try { navigator.sendBeacon(BEACON.replace('sheepquest', 'sheepquest-done')); } catch (e) {}
   const n = flockCount();
   // ★ 神學鐵則:得勝歸給神,不誇孩子的力氣(撒上 17:37「耶和華救我脫離獅子和熊的爪」)
-  $('catchMsg').textContent = target.beast
+  $('catchMsg').textContent = (dayFirst ? '👑 今天的第一隻!\n' : '') + (target.beast
     ? `🎉 ${target.name} 從${target.beast.n}口中被救回來了!(第 ${n} 隻)\n「耶和華救我脫離獅子和熊的爪」(撒上 17:37)——不是靠你的力氣,是神與你同在。`
-    : `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`;
+    : `🎉 ${target.name} 跟你回家了!(第 ${n} 隻)`);
   $('catchMsg').style.whiteSpace = 'pre-line';
   // 🔊 過關就用曉臻人聲唸經文(含出處);得勝歸神那句才是重點,不是「你好棒」
   // ★ 這裡的文字必須與 voice/*.mp3 烤進去的唸稿**逐字相同**(含中文數字出處),不可漂移
@@ -1800,30 +2248,103 @@ function caught() {
     });
     if (n === 100) {
       openFlock(); $('flockVerse').innerHTML = '<div class="ribbon">🎊🐑🎊</div>「我失去的羊已經找著了,你們和我一同歡喜吧!」(路 15:6)——一百隻,一隻也不少!';
+      CONFETTI.go({ duration: 4200 });          // 🏆 羊1:滿百的彩帶放久一點(這是最大的那一場)
       TTS.speakScripture('我失去的羊已經找著了,你們和我一同歡喜吧!路加福音十五章六節。一百隻,一隻也不少。', { ref: '路 15:6' });
     }
     /* ⚠ 截圖驗收抓到:toast 是 z-index 40、明信片面板是 30 ⇒ 這兩句會**蓋在明信片正中央**。
        改成存起來,等使用者關掉明信片回地圖時才講(那時他才需要這個指路)。 */
     else if (n === 1) afterCard('第一隻!羊圈(📖)裡看得到牠', 3000);
+    else if (dayFirst) afterCard('👑 今天的第一隻!羊圈裡牠戴著金冠', 3200);
     else if (target.gold) afterCard('✨ 金毛羊入圈!好眼光!', 3000);
+    /* 🏆 羊1:跨過台階就排隊,等他關掉明信片再慶祝(不要蓋在明信片上)。
+       ★ 滿百有自己那一場大的,不要再疊一次里程碑畫面。 */
+    if (n < 100) { const m = milestoneHit(n); if (m) _afterMile = m; }
   }, 1400);
 }
 $('fleeBtn').onclick = () => { cancelAnimationFrame(raf); tele = false; setTele(false); phase = 'catch'; B3D.dispose(); $('catchPanel').classList.remove('on'); };
 
 /* ── 羊圈 ── */
+/* 一隻羊在格子裡長什麼樣(羊圈/金毛櫥窗/跟隨小隊三處共用一份 —— 各寫一份就會有一天長得不一樣) */
+function slotHtml(s, extra) {
+  const tips = [];
+  if (s.rescued) tips.push(`從${s.rescued}口中救回來的`);
+  if (s.first) tips.push('今天的第一隻');            // 📅 羊2
+  return `<div class="slot got ${s.gold ? 'gold' : ''} ${s.first ? 'first' : ''}" title="${tips.join('・')}"${extra || ''}>`
+    + `${s.first ? '👑' : ''}${s.rescued ? '⚔️' : ''}${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`;
+}
 function openFlock() {
   $('count2').textContent = flockCount();
   const got = Object.values(save.flock).sort((a, b) => a.ts - b.ts);
   let html = '';
   for (let i = 0; i < 100; i++) {
     const s = got[i];
-    html += s ? `<div class="slot got ${s.gold ? 'gold' : ''}" title="${s.rescued ? `從${s.rescued}口中救回來的` : ''}">${s.rescued ? '⚔️' : ''}${s.gold ? '✨' : ''}${s.e}<span class="nm">${s.name}</span></div>`
-              : '<div class="slot">·</div>';
+    html += s ? slotHtml(s) : '<div class="slot">·</div>';
   }
   $('flockGrid').innerHTML = html;
+  paintMiles();                        // 🏆 羊1:紀念章
+  paintGoldCase();                     // ✨ 羊4:金毛櫥窗
+  paintEscortBox();                    // 🐑 羊14:跟隨小隊
   paintDexBox();                       // 🐑 跨站互通那一區(載不到 SheepDex 就自己藏起來)
   $('flockPanel').classList.add('on');
 }
+
+/* 🏆 羊1:紀念章列。★ 還沒到的台階也要畫出來(灰的)—— 這張卡治的就是「看不到前面有什麼」。 */
+function paintMiles() {
+  const n = flockCount();
+  const all = MILESTONES.concat([{ n: 100, em: '🎊', word: '一百隻,一隻也不少!' }]);
+  $('mileRow').innerHTML = all.map((m) => {
+    const got = n >= m.n;
+    return `<div title="${got ? '已達成:' + m.word : `還差 ${m.n - n} 隻`}" style="`
+      + `padding:5px 9px;border-radius:999px;font-weight:800;font-size:13px;`
+      + (got ? 'background:linear-gradient(180deg,#fff3c4,#ffe27a);border:2px solid var(--gold);color:#7a5c0a'
+             : 'background:rgba(0,0,0,.05);border:2px dashed #c3ccc6;color:#96a29a')
+      + `">${m.em} ${m.n}</div>`;
+  }).join('');
+}
+
+/* ✨ 羊4:金毛櫥窗(純排版,不碰邏輯;一隻都沒有就整區收起來) */
+function paintGoldCase() {
+  const golds = Object.values(save.flock).filter((s) => s.gold).sort((a, b) => a.ts - b.ts);
+  const box = $('goldCase');
+  if (!golds.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  $('goldNum').textContent = `(${golds.length} 隻)`;
+  $('goldGrid').innerHTML = golds.map((s) => slotHtml(s)).join('');
+}
+
+/* 🐑 羊14:選誰跟著走(上限 5 隻)。點格子=加入/移出。
+   ★ 沒選過就是「最近抓到的 5 隻」,而且那時**不要**寫進 save.escort ——
+     寫進去就凍結了,以後新抓的羊永遠擠不進來(使用者會覺得「小隊不會更新」)。 */
+function paintEscortBox() {
+  const ids = escortIds(), pick = new Set(ids);
+  const all = Object.keys(save.flock).sort((a, b) => (save.flock[b].ts || 0) - (save.flock[a].ts || 0));
+  $('escortSw').checked = !escortOn();
+  $('escortStat').textContent = !all.length
+    ? '還沒有羊——找回第一隻,牠就會跟著你走。'
+    : (escortOn()
+        ? `目前 ${ids.length}/${ESCORT_MAX} 隻跟著你${save.escort ? '(你選的)' : '(最近找回的幾隻;點格子可以自己挑)'}。`
+        : '跟隨已關閉——地圖上只會有牧人。');
+  /* 最多列 40 隻:羊圈可以到 100 隻,全列出來會把這一區變成第二本收藏冊(而且手機捲不完) */
+  $('escortGrid').innerHTML = all.slice(0, 40).map((id) => {
+    const s = save.flock[id], on = pick.has(id);
+    return slotHtml(s, ` data-eid="${id}" style="cursor:pointer;${on ? 'outline:3px solid var(--green);outline-offset:1px' : 'opacity:.55'}"`);
+  }).join('');
+  for (const el of $('escortGrid').querySelectorAll('[data-eid]')) {
+    el.onclick = () => {
+      const id = el.dataset.eid, cur = escortIds();
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.concat([id]);
+      if (next.length > ESCORT_MAX) { toast(`最多 ${ESCORT_MAX} 隻——先點掉一隻再選`, 2600); return; }
+      save.escort = next; persist();
+      paintEscortBox();
+      refreshSheep();                   // 立刻在地圖上生效(不用回地圖才看得到)
+    };
+  }
+}
+$('escortSw').onchange = (e) => {
+  save.escortOff = !!e.target.checked; persist();
+  paintEscortBox(); refreshSheep();
+  toast(save.escortOff ? '🐑 羊不再跟著你(地圖上只留牧人)' : '🐑 羊會跟在你身後了', 3000);
+};
 
 /* ══ 🐑 跨站搬羊 UI(0812 B 案)══════════════════════════════════════════════
    ★ 訊息一律講「發生了什麼」,不是「成功/失敗」——匯入 0 隻與檔案壞掉是**兩件事**,
