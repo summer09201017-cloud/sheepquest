@@ -279,6 +279,103 @@ async function seedFlock(page, count, opt) {
   await lp.close()
 }
 
+// ── ⑪ ⌨ 客廳模式的鍵盤走路(0826 使用者實測回報「PC 用方向鍵動彈不得」)──────
+//    ★ 這一案跑**桌機 viewport**(不是 mobile)—— 使用者遇到問題的就是那個環境,
+//      而先前所有閘門都只跑 iPhone 尺寸,所以這個缺口一路沒被看見。
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })   // 桌機:無 touch
+  page.on('pageerror', (e) => errs.push('⑪ ' + String(e)))
+  await page.goto(URL, { waitUntil: 'domcontentloaded' })
+  await page.waitForFunction(() => !!window.__sqmap, null, { timeout: 20000 })
+  await page.locator('#agree').click({ timeout: 10000 })
+  await page.locator('#demoBtn').click({ timeout: 10000 })
+  await sleep(5000)
+
+  const hintShown = await page.evaluate(() => getComputedStyle(document.getElementById('kbHint')).display !== 'none')
+  ok(hintShown, '⑪ 桌機上看得到「用方向鍵走路」的提示(不講他不會知道)')
+  await page.screenshot({ path: `${OUT}/desktop-map.png` })     // ★ 地圖畫面(提示條的位置要人看一眼)
+  /* ★★ 提示條不可以疊到任何浮動元素。
+     ⚠ 判準刻意是「**掃所有 position:fixed 的可見元素**」,不是「比對我記得的那幾個 id」——
+       第一版就是只比對頂端那排按鈕,結果提示條被 **#placeChip 地名膠囊**(top:52px)
+       整條蓋住,只露出兩側的「用…走路」,而檢查照樣是綠的(截圖才看出來)。
+       這是這個 repo 反覆出現的那一型:**判準只認得自己想到的那幾個,就等於沒在守**。 */
+  const overlap = await page.evaluate(() => {
+    const me = document.getElementById('kbHint')
+    const a = me.getBoundingClientRect()
+    const hits = []
+    for (const el of document.querySelectorAll('body *')) {
+      if (el === me || me.contains(el) || el.contains(me)) continue
+      const cs = getComputedStyle(el)
+      if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) continue
+      const b = el.getBoundingClientRect()
+      if (!b.width || !b.height) continue
+      if (b.width > innerWidth * 0.9 && b.height > innerHeight * 0.9) continue        // 滿版容器(地圖/toast 層)不算
+      if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) {
+        hits.push(el.id || el.className || el.tagName)
+      }
+    }
+    return hits
+  })
+  ok(overlap.length === 0, '⑪a2 ★提示條沒有疊到任何浮動元素(掃全部 fixed,不是只比對記得的那幾個)', { overlap })
+
+  /* 四個方向各按一次:座標要真的變,而且方向要對 */
+  const dirs = [['ArrowUp', 'lat', 1], ['ArrowDown', 'lat', -1], ['ArrowRight', 'lng', 1], ['ArrowLeft', 'lng', -1]]
+  for (const [key, axis, sign] of dirs) {
+    const b = await page.evaluate(() => ({ lat: window.__sqpos().lat, lng: window.__sqpos().lng }))
+    await page.keyboard.press(key)
+    await sleep(260)
+    const a = await page.evaluate(() => ({ lat: window.__sqpos().lat, lng: window.__sqpos().lng }))
+    const moved = (a[axis] - b[axis]) * sign
+    ok(moved > 0.00005, `⑪ ${key} → 往${axis === 'lat' ? (sign > 0 ? '北' : '南') : (sign > 0 ? '東' : '西')}走`, { delta: +(moved * 111000).toFixed(1) + 'm' })
+  }
+  // WASD 也要通(沒有方向鍵的筆電/習慣遊戲操作的孩子)
+  const wb = await page.evaluate(() => window.__sqpos().lat)
+  await page.keyboard.press('w'); await sleep(260)
+  const wa = await page.evaluate(() => window.__sqpos().lat)
+  ok(wa > wb, '⑪b WASD 也能走(W=往北)')
+
+  /* ★★ 反面對照三條:不可以攔到別人的鍵 */
+  await page.locator('#flockBtn').click({ timeout: 10000 })       // 開羊圈=面板開著
+  await sleep(500)
+  const pb = await page.evaluate(() => window.__sqpos().lat)
+  await page.keyboard.press('ArrowDown'); await sleep(260)
+  const pa = await page.evaluate(() => window.__sqpos().lat)
+  ok(pb === pa, '⑪c ★面板開著時方向鍵不走路(那時它是在捲頁面)')
+
+  // textarea 裡打字:方向鍵要留給游標
+  const ta = await page.evaluate(() => {
+    const t = document.getElementById('dexIo')
+    t.style.display = ''; t.value = 'abc'; t.focus(); t.setSelectionRange(3, 3)
+    return true
+  })
+  const tb = await page.evaluate(() => window.__sqpos().lat)
+  await page.keyboard.press('ArrowLeft'); await sleep(200)
+  const tafter = await page.evaluate(() => ({ lat: window.__sqpos().lat, caret: document.getElementById('dexIo').selectionStart }))
+  ok(ta && tb === tafter.lat && tafter.caret === 2,
+    '⑪d ★焦點在輸入框時方向鍵移游標、不走路(羊圈的貼上區就是 textarea)', { caret: tafter.caret })
+  await page.screenshot({ path: `${OUT}/desktop-keyboard.png` })
+  await page.close()
+}
+
+// ── ⑫ ★ GPS 模式下鍵盤絕不可以動座標(在戶外會看到自己憑空瞬移)────────────
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+  page.on('pageerror', (e) => errs.push('⑫ ' + String(e)))
+  await page.context().grantPermissions(['geolocation'])
+  await page.context().setGeolocation({ latitude: 25.0330, longitude: 121.5654, accuracy: 8 })
+  await page.goto(URL, { waitUntil: 'domcontentloaded' })
+  await page.waitForFunction(() => !!window.__sqmap, null, { timeout: 20000 })
+  await page.locator('#agree').click({ timeout: 10000 })
+  await page.locator('#startBtn').click({ timeout: 10000 })       // 真的走 GPS 這條路
+  await page.waitForFunction(() => window.__sqpos && window.__sqpos(), null, { timeout: 20000 })
+  await sleep(2500)
+  const b = await page.evaluate(() => window.__sqpos().lat)
+  for (const k of ['ArrowUp', 'ArrowRight', 'w', 'd']) { await page.keyboard.press(k); await sleep(150) }
+  const a = await page.evaluate(() => window.__sqpos().lat)
+  ok(b === a, '⑫ ★GPS 模式下按鍵盤不會動座標(不然戶外會看到自己憑空瞬移)', { before: b, after: a })
+  await page.close()
+}
+
 // ── ⑩ 零 pageerror ─────────────────────────────────────────────────────
 if (errs.length) { console.log('🔴 頁面錯誤:'); errs.forEach((e) => console.log('  ' + e)); fail++ }
 else console.log('🟢 ⑩ 0 pageerror')

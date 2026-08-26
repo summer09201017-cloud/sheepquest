@@ -187,6 +187,18 @@
     <button class="btn primary" id="shCatch">🪢 帶回這隻羊</button>
   </div>
 </div>
+<!-- ⌨ 客廳模式在 PC 上的操作提示(0826 使用者實測回報「用方向鍵動彈不得」)。
+     ★ 放在畫面**上方**而不是跟按鈕擠在最下面:使用者第一眼會看地圖中央,
+       底部那排按鈕在 1280×800 的畫面上位置很低,實測很容易整排被漏看。
+     ⚠ **top 必須在 #placeChip(地點膠囊,top:52px)之下** —— 第一版寫 56px,
+       截圖一看整條被地名膠囊蓋住,只露出兩側的「用…走路」(而自動檢查是綠的,
+       因為我當時只比對了頂端那排按鈕,沒把地名膠囊算進去)。
+       ⇒ 新增浮動元素時,**要比對的是「所有 position:fixed 的東西」**,不是自己記得的那幾個。 -->
+<div id="kbHint" style="display:none;position:fixed;left:50%;transform:translateX(-50%);top:100px;z-index:12;
+  background:rgba(255,255,255,.94);border-radius:999px;padding:7px 16px;font-size:14px;font-weight:700;
+  color:#2f4f3a;box-shadow:0 2px 10px #0003;pointer-events:none;white-space:nowrap">
+  ⌨ 用 ⬆ ⬇ ⬅ ➡ 方向鍵(或 WASD)走路
+</div>
 <div class="bottom">
   <button class="btn" id="locBtn">📍 重新定位</button>
   <button class="btn" id="walkBtn" style="display:none">🚶 往最近的羊走一步</button>
@@ -280,7 +292,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v26(2026-08-26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v27(2026-08-26 ⌨ <b>電腦上可以用方向鍵/WASD 走路</b>了(客廳測試模式);v26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -1690,8 +1702,15 @@ function enterDemoMode() {
   $('walkBtn').style.display = 'inline-block';
   $('walkBeastBtn').style.display = 'inline-block';
   $('sceneSel').style.display = 'inline-block';   // 🏞 示範用的換背景下拉
-  onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕虛擬走路
-  toast('🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 4200);
+  onPos(25.0330, 121.5654);      // 測試起點(台北);測試模式=按按鈕或鍵盤虛擬走路
+  /* ⌨ 有實體鍵盤的裝置(PC)要**主動講**可以用方向鍵 —— 使用者 0826 實測回報
+     「用方向鍵動彈不得」,他根本不知道只能按鈕(而按鈕在畫面最下面很容易被漏看)。
+     ★ 判準用「有沒有細指標(滑鼠)」而不是螢幕寬度:平板接鍵盤也算,手機橫放不算。 */
+  const hasKb = matchMedia && matchMedia('(pointer: fine)').matches;
+  $('kbHint').style.display = hasKb ? 'block' : 'none';
+  toast(hasKb
+    ? '🧪 測試模式:用 ⬆⬇⬅➡ 方向鍵(或 WASD)自己走;也可以按「🚶 走一步」自動走向最近的羊'
+    : '🧪 測試模式:按「往最近的羊走一步」模擬走路;想練習打野獸按「⚔️ 練習救羊」', 5200);
 }
 $('demoBtn').onclick = enterDemoMode;
 $('geoDemoBtn').onclick = () => { SFX.unlock(); COMPASS.arm(); enterDemoMode(); };   // 等待框裡的出口鈕(0731 使用者拍板)
@@ -1707,6 +1726,50 @@ const stepTo = n => {
   mapPanTo(pos.lat, pos.lng);
 };
 $('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ⌨ 客廳模式的鍵盤走路(2026-08-26 使用者實測回報)
+   ══════════════════════════════════════════════════════════════════════════════
+   原話:「客廳測試模式(不用出門),我用 PC 的 CHROME 玩,用方向鍵,結果動彈不得。」
+   ★ 根因**不是壞掉**:這個遊戲是為手機 GPS 設計的,客廳模式從第一版起
+     就只有「🚶 往最近的羊走一步」一顆鈕,**從來沒有做過鍵盤控制** ——
+     而在 PC 上打開一張滿版地圖,任何人的第一個動作都是按方向鍵。
+     桌機實測:按 8 個鍵座標完全不變、零 JS 錯誤 = 沒有人在聽鍵盤。
+   ⇒ 補上方向鍵 / WASD:往那個方向走,而不是「走向最近的羊」——
+     使用者要的是**自己決定往哪走**(那顆鈕是「自動導航」,兩件事)。
+
+   ⚠⚠ **只在客廳模式(demo)生效,GPS 模式一律不接鍵盤。**
+     真實定位模式下用鍵盤搬動座標 = 把 GPS 的位置蓋掉,
+     人在戶外會看到自己憑空瞬移(而且下一筆 fix 又把他拉回來,像鬼打牆)。
+   ⚠ 三種情況不可以攔鍵盤,否則會弄壞別的功能:
+     ① 焦點在輸入框/textarea(羊圈的「📄 貼上羊圈文字」就是 textarea,
+        方向鍵要能在裡面移動游標)
+     ② 有面板開著(羊圈/明信片/慶祝畫面)—— 那時方向鍵是在捲頁面
+     ③ 帶了修飾鍵(Ctrl/Alt/Meta)—— 那是瀏覽器快捷鍵,不是走路 */
+const KEY_STEP_M = 12;                       // 一步 12 公尺(抓羊半徑 30m ⇒ 兩三步就到得了)
+function stepDir(dx, dy) {
+  if (!demo || !pos) return;                 // ★ 只有客廳模式;GPS 模式絕不用鍵盤動座標
+  const dLat = (dy * KEY_STEP_M) / 110574;
+  const dLng = (dx * KEY_STEP_M) / (111320 * Math.cos(pos.lat * Math.PI / 180));
+  onPos(pos.lat + dLat, pos.lng + dLng);
+  mapPanTo(pos.lat, pos.lng);
+}
+const KEY_DIR = {
+  ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+  w: [0, 1], s: [0, -1], a: [-1, 0], d: [1, 0],
+  W: [0, 1], S: [0, -1], A: [-1, 0], D: [1, 0],
+};
+addEventListener('keydown', (e) => {
+  if (!demo) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;                       // 瀏覽器快捷鍵
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (document.querySelector('.panel.on')) return;                      // 有面板開著=方向鍵在捲頁
+  const dir = KEY_DIR[e.key];
+  if (!dir) return;
+  e.preventDefault();                        // 擋掉方向鍵捲動頁面(不然地圖會跟著跳)
+  stepDir(dir[0], dir[1]);
+});
 /* ⚔️ 練習救羊:**一鍵直接站到獸旁邊**(0729 修)——
    原本是「走一步」(一次只走掉近半距離),第一次按完還有 47m、下方入口不會出現,
    使用者以為壞了(實測重現)。客廳練習模式的目的就是**省掉走路**,所以直接把人放到 4m 處。
@@ -1992,6 +2055,9 @@ function showMilestone(m) {
 try {
   window.__sqmile = { hit: (n) => milestoneHit(n == null ? flockCount() : n), show: showMilestone, list: () => MILESTONES };
   window.__sqday = { isFirst: isDayFirst, key: todayKey };
+  /* ⌨ 驗收用:讀目前座標(唯讀)。驗「鍵盤有沒有真的把人走動」與
+     「GPS 模式下鍵盤**不可以**動座標」兩件事都要它。 */
+  window.__sqpos = () => (pos ? { lat: pos.lat, lng: pos.lng, demo } : null);
 } catch (e) {}
 
 /* ══ 📲 羊3:安裝到主畫面(收割 skill pwa-install-button)════════════════════
