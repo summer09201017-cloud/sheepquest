@@ -470,6 +470,80 @@ async function seedFlock(page, count, opt) {
   await page.close()
 }
 
+// ── ⑮ 🎥 視角切換 / 🔍 縮放 / 🐕 兩隻牧羊犬 / ⚡ 戰鬥時地圖藏起來(0826 戶外實測五件)──
+{
+  const page = await browser.newPage({ viewport: { width: 430, height: 900 }, isMobile: true, hasTouch: true })
+  page.on('pageerror', (e) => errs.push('⑮ ' + String(e)))
+  await boot(page)
+
+  /* ★★ 控制列不可以被任何浮動元素蓋住。
+     ⚠ 第一版放畫面正中右側 ⇒ 被 #nearBar(附近有羊才出現的那顆)蓋住,
+       平常測不到、真的要用時才按不到。判準一律**掃所有 position:fixed 的可見元素**。 */
+  const overlap = await page.evaluate(() => {
+    const hits = []
+    for (const id of ['viewChip', 'zoomIn', 'zoomOut']) {
+      const me = document.getElementById(id)
+      const a = me.getBoundingClientRect()
+      for (const el of document.querySelectorAll('body *')) {
+        if (el === me || me.contains(el) || el.contains(me)) continue
+        const cs = getComputedStyle(el)
+        if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) continue
+        const b = el.getBoundingClientRect()
+        if (!b.width || !b.height) continue
+        if (b.width > innerWidth * 0.9 && b.height > innerHeight * 0.9) continue
+        if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) hits.push(id + '↔' + (el.id || el.className))
+      }
+    }
+    return hits
+  })
+  ok(overlap.length === 0, '⑮ ★視角/縮放鈕沒有被任何浮動元素蓋住(掃全部 fixed)', { overlap })
+
+  // 🔍 縮放:真的按,而且地圖的 zoom 要真的變
+  const z0 = await page.evaluate(() => window.__sqmap.view())
+  await page.locator('#zoomIn').click(); await sleep(800)
+  const z1 = await page.evaluate(() => window.__sqmap.view())
+  ok(z1.zoomStep === z0.zoomStep + 1 && z1.zoom > z0.zoom,
+    '⑮b ★按「＋」真的拉近(地圖的 zoom 跟著變,不是只改了一個沒作用的數字)', { before: z0.zoom, after: z1.zoom })
+
+  // 🎥 視角:切一輪,pitch 要真的變
+  const seen = []
+  for (let i = 0; i < 3; i++) {
+    const v = await page.evaluate(() => window.__sqmap.view())
+    seen.push({ k: v.k, pitch: v.pitch })
+    await page.locator('#viewChip').click(); await sleep(900)
+  }
+  const pitches = new Set(seen.map((s) => s.pitch))
+  ok(seen.length === 3 && pitches.size === 3, '⑮c ★三種視角的傾角互不相同(不是換了個名字而已)', seen)
+  ok(seen.some((s) => s.pitch === 0), '⑮d 有「正上方」那一檔(使用者原本就是被迫在這個視角)', {
+    pitches: [...pitches],
+  })
+
+  // 🐕 兩隻狗:在場,而且走路時會繞
+  const d0 = await page.evaluate(() => window.__sqmap.dogs())
+  ok(d0.n === 2, '⑮e 🐕 兩隻牧羊犬在場', { n: d0.n })
+  for (let i = 0; i < 4; i++) { await page.locator('#walkBtn').click(); await sleep(380) }
+  const d1 = await page.evaluate(() => window.__sqmap.dogs())
+  ok(d1.t > d0.t, '⑮f ★走路時狗會繞著跑(靜止時刻意不動=省電)', { before: d0.t, after: d1.t })
+  const apart = Math.hypot(d1.pos[0][0] - d1.pos[1][0], d1.pos[0][1] - d1.pos[1][1])
+  ok(apart > 20, '⑮g 兩隻狗一前一後(相位差 π),不會疊在一起', { 相距: Math.round(apart) })
+
+  /* ⚡ 戰鬥時地圖要整個藏起來(使用者:「打熊時與抓羊時,會一直 LAG」)
+     ★ 判準是 display:none —— visibility/opacity 仍然會參與合成,等於沒省到。 */
+  await page.locator('#walkBeastBtn').click(); await sleep(1200)
+  await page.locator('#nearBar').click({ timeout: 10000 })
+  await sleep(3000)
+  const inFight = await page.evaluate(() => ({
+    map: getComputedStyle(document.getElementById('map')).display,
+    fighting: document.getElementById('catchPanel').classList.contains('on'),
+  }))
+  ok(inFight.fighting && inFight.map === 'none',
+    '⑮h ★★戰鬥時地圖 display:none(兩個 WebGL 同時跑正是 LAG 的來源)', inFight)
+  await page.locator('#fleeBtn').click(); await sleep(1200)
+  const back = await page.evaluate(() => getComputedStyle(document.getElementById('map')).display)
+  ok(back === 'block', '⑮i 離開戰鬥地圖要回來(而且是明確的 block,不是清 inline)', { map: back })
+  await page.close()
+}
+
 // ── ⑫ ★ GPS 模式下鍵盤絕不可以動座標(在戶外會看到自己憑空瞬移)────────────
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
