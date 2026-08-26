@@ -328,6 +328,28 @@ async function seedFlock(page, count, opt) {
     const moved = (a[axis] - b[axis]) * sign
     ok(moved > 0.00005, `⑪ ${key} → 往${axis === 'lat' ? (sign > 0 ? '北' : '南') : (sign > 0 ? '東' : '西')}走`, { delta: +(moved * 111000).toFixed(1) + 'm' })
   }
+  /* ★★ ⑪e 牧人要**面朝他走的方向**(0826 使用者實測:「按上時臉往下像倒退、
+     按下只看到頭髮、按左臉朝右」)—— 病根是朝向公式多一個 +π,整整背反 180°,
+     從羊10(0803)活到現在;以前只有「走一步」鈕、羊四面八方都有,所以沒人察覺。
+     ⚠ 判準用「面朝走的方向」(位移向量 · 朝向向量 ≈ 1),不是「按上要背對鏡頭」——
+       後者綁死地圖 bearing,換個方位角就失效。 */
+  for (const [key, label] of [['ArrowUp', '上'], ['ArrowDown', '下'], ['ArrowLeft', '左'], ['ArrowRight', '右']]) {
+    const r = await page.evaluate(async (k) => {
+      const p0 = window.__sqpos()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }))
+      await new Promise((res) => setTimeout(res, 300))
+      const p1 = window.__sqpos()
+      const f = window.__sqmap.chars().faceVec
+      // 位移換成 (x=東, z=-北) 的世界向量,與朝向向量比對
+      const east = (p1.lng - p0.lng) * 111320 * Math.cos(p0.lat * Math.PI / 180)
+      const north = (p1.lat - p0.lat) * 110574
+      const mv = [east, -north]
+      const len = Math.hypot(mv[0], mv[1]) || 1
+      return { dot: +((mv[0] / len) * f[0] + (mv[1] / len) * f[1]).toFixed(3), moved: +len.toFixed(1) }
+    }, key)
+    ok(r.moved > 6 && r.dot > 0.9, `⑪e ★按${label}時牧人面朝他走的方向(不是倒著走)`, r)
+  }
+
   // WASD 也要通(沒有方向鍵的筆電/習慣遊戲操作的孩子)
   const wb = await page.evaluate(() => window.__sqpos().lat)
   await page.keyboard.press('w'); await sleep(260)
@@ -354,6 +376,53 @@ async function seedFlock(page, count, opt) {
   ok(ta && tb === tafter.lat && tafter.caret === 2,
     '⑪d ★焦點在輸入框時方向鍵移游標、不走路(羊圈的貼上區就是 textarea)', { caret: tafter.caret })
   await page.screenshot({ path: `${OUT}/desktop-keyboard.png` })
+  await page.close()
+}
+
+// ── ⑬ 🐑 羊的密度可調(0826 使用者:「客廳模式羊到處都能找到,密度太高了」)──────
+//    ★ 判準是**量出來的**(直走 1 公里、每 5 公尺取樣,數遇到幾隻),
+//      不是「相信設定值有寫進去」—— 羊13 當年就是這樣量的,同一套。
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  page.on('pageerror', (e) => errs.push('⑬ ' + String(e)))
+  await boot(page)
+  const measure = await page.evaluate(async () => {
+    const out = {}
+    for (const k of ['dense', 'normal', 'sparse']) {
+      window.__sqdens.set(k)
+      /* 直走 1 公里(往東),每 5m 取樣一次「25m 內有沒有羊」,數不同的羊有幾隻 */
+      const seen = new Set()
+      const lat = 25.0330
+      for (let m = 0; m < 1000; m += 5) {
+        const lng = 121.5654 + m / (111320 * Math.cos(lat * Math.PI / 180))
+        for (const s of window.__sqdens.around(lat, lng)) {
+          const d = window.__sqdens.dist({ lat, lng }, s)
+          if (d <= 30) seen.add(s.id)
+        }
+      }
+      out[k] = { count: seen.size, everyM: seen.size ? Math.round(1000 / seen.size) : null }
+    }
+    window.__sqdens.set('dense')
+    return out
+  })
+  console.log('   密度實測(直走 1 公里遇到幾隻):', JSON.stringify(measure))
+  ok(measure.dense.count > measure.normal.count && measure.normal.count > measure.sparse.count,
+    '⑬ ★三檔密度真的一檔比一檔疏(量出來的,不是相信設定值)', measure)
+  ok(measure.sparse.everyM >= 100,
+    '⑬b ★「疏」要真的疏得有感(客廳按一下走 12m,平均 100m 以上才有尋找的意思)',
+    { everyM: measure.sparse.everyM })
+
+  // 真的去選那個下拉(守門 #29:evaluate 證明不了使用者點得到)
+  await page.locator('#flockBtn').click({ timeout: 10000 })
+  await sleep(500)
+  await page.locator('#densitySel').selectOption('sparse')
+  await sleep(500)
+  const picked = await page.evaluate(() => ({
+    saved: JSON.parse(localStorage.getItem('sheepquest-v1') || '{}').density,
+    live: window.__sqdens.now(),
+  }))
+  ok(picked.saved === 'sparse' && picked.live.key === 'sparse',
+    '⑬c ★真的去選「疏」→ 當場生效而且記得住', picked)
   await page.close()
 }
 

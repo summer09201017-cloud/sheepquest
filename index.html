@@ -292,7 +292,7 @@
       <option value="B">B|圓萌牧人(圓圓的,仍有長袍與牧羊杖)</option>
     </select>
   </label>
-  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v27(2026-08-26 ⌨ <b>電腦上可以用方向鍵/WASD 走路</b>了(客廳測試模式);v26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
+  <p class="hint" id="verTag" style="margin-top:6px;opacity:.7">版本 v28(2026-08-26 🔴 <b>修好牧人「倒著走」</b>(朝向反了 180°,從 0803 活到現在)+ 🐑 <b>羊圈裡可以調羊的密度</b>(密/中/疏);v27 ⌨ 電腦可用方向鍵/WASD 走路;v26 六件:🐑 <b>找回來的羊會排隊跟在你身後走</b>(羊圈裡可以挑誰出來)、🏆 <b>10/25/50/75 隻的慶祝</b>(彩帶+金句朗讀+紀念章)、📅 <b>每天第一隻戴金冠</b>、📲 <b>安裝到主畫面的按鈕</b>、✨ <b>金毛羊櫥窗</b>、🌅 <b>光線跟著現在的時間走</b>;v25 的牧場旁白、v23 的跨站羊圈、v22 的羊加密、v20 的兇猛獸、v19 的 3D 牧人都在)——羊圈(📖)裡看不到「🐑 跟著我走的小隊」那一區就是還在舊版:把 App 完全關掉再開,或重新整理。</p>
 </section>
 
 <!-- 抓捕 -->
@@ -380,6 +380,15 @@
        (也讓 save.pikminMap 這個鍵「有讀也有寫」——只讀不寫的鍵是無聲失敗,守門 #23 抓的就是這個。)-->
   <label class="hint" style="display:block;margin-top:14px">
     <input type="checkbox" id="mapColorSw"> 🗺 地圖再加一層鮮豔濾鏡(預設關;底圖已是淡彩的 CARTO Voyager,再疊會更糊、路名更難讀)
+  </label>
+  <!-- 🐑 羊的密度(0826 使用者實測:客廳模式羊太多)。★ 換檔會讓這一帶的羊重排,
+       文案一定要講,不然會被當成「遊戲壞掉/我的羊不見了」。 -->
+  <label class="hint" style="display:block;margin-top:14px;font-weight:700">🐑 羊出現的密度:
+    <select class="btn" id="densitySel" style="font-weight:700;padding:4px 8px"></select>
+    <span class="hint" style="display:block;font-weight:400;margin-top:4px">
+      戶外走路建議「密」;<b>客廳測試模式</b>按一下就走 12 公尺,選「疏」比較有尋找的感覺。<br>
+      ⚠ 換了之後<b>這一帶的羊會重新排一次</b>(羊是照地點算出來的)——羊圈裡已經找回來的羊不會不見。
+    </span>
   </label>
   <!-- 🌅 羊11:時段氛圍。預設開;不喜歡的人關得掉(裝置層偏好,和音樂/過場同慣例)。
        ★ 文案要講清楚「不會變暗」——不然家長看到「夜晚」兩個字會擔心晚上看不見路。 -->
@@ -916,7 +925,27 @@ const PLACE = {
 };
 
 /* ── 確定性生成 ── */
-const CELL = 0.00052;                                   // ≈ 58m 格(0804 第二次加密,見 sheepInCell 上方註解)
+/* 🐑 羊的密度(0826 使用者實測回報:「我用客廳模式,羊到處都能找到,密度太高了」)
+   ─────────────────────────────────────────────────────────────────────────────
+   ★ 為什麼要**可調**而不是直接調回去:兩種玩法的需求剛好相反 ——
+     · **戶外 GPS**:走一步是真的一步,太疏就得刻意走很遠去找(0804 使用者要的正是加密)。
+     · **客廳測試**:按一下鍵盤走 12 公尺,同樣密度就變成「滿地都是」,失去尋找的意思。
+   ⇒ 給三檔,預設維持 0804 那個戶外用的密度(不動既有使用者的體驗)。
+   ⚠⚠ **換密度=這一帶的羊整批重排**:羊是用「格子座標|時段」當種子算出來的,
+     格子大小一改,連 id 都不一樣了 ⇒ 已經抓過的那些**不再被認得**(可能再遇到同名的羊)。
+     羊圈裡已收藏的羊不會消失(save.flock 是另一份),但「這格抓過了」的去重只在同一檔內成立。
+     ⇒ 換檔時要**明講**這件事,不要讓人以為遊戲壞了。
+   ★ 「羊多不多」與「獸多不多」是**兩個轉盤**(羊13 就寫過這條):
+     只想少遇到戰鬥就調獸,不要動密度。 */
+const DENSITY = {
+  dense:  { cell: 0.00052, spawn: 0.72, label: '密(戶外走路用;約每 56 公尺一隻)' },
+  normal: { cell: 0.00090, spawn: 0.60, label: '中(約每 140 公尺一隻)' },
+  sparse: { cell: 0.00150, spawn: 0.45, label: '疏(客廳測試用;要走一段才遇得到)' },
+};
+const densityKey = () => (DENSITY[save.density] ? save.density : 'dense');
+/* ⚠ CELL/SPAWN 是 **let**(要能在切換密度時改)——它們被 sheepInCell 與 sheepAround
+   直接讀,改一次全域生效;切完一定要 refreshSheep() 才看得到新的一批。 */
+let CELL = DENSITY[densityKey()].cell;                  // 預設 ≈58m 格(0804 第二次加密)
 const EPOCH = () => Math.floor(Date.now() / (4 * 3600e3)); // 4 小時換一批羊
 function seedOf(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -939,7 +968,15 @@ const BEASTS = [
         觸發半徑放寬的理由:GPS 精度常 ±10~40m,25m 太苛——那是「走到了卻抓不到」客訴的來源。
    ⚠ 動 CELL 會讓**所有羊的位置重算** —— 全家同見仍成立(同版本同時段還是同一群),
      但**混版期間新舊版看到的羊不同**;羊本來就每 4 小時換一批,影響僅止於換版那一刻。 */
-const SPAWN = 0.72, BEAST_P = 0.45, CATCH_M = 30;
+let SPAWN = DENSITY[densityKey()].spawn;                 // ⚠ let:密度可調(見 DENSITY 那段)
+const BEAST_P = 0.45, CATCH_M = 30;                     // 獸的比例與觸發半徑是另外的轉盤,不隨密度動
+/* 切換密度:改兩個數字 + 重畫。★ 一定要 refreshSheep(),不然畫面停在舊的一批,
+   使用者會以為「選了沒用」。 */
+function applyDensity() {
+  const d = DENSITY[densityKey()];
+  CELL = d.cell; SPAWN = d.spawn;
+  if (pos) refreshSheep();
+}
 function sheepInCell(cx, cy) {
   const id = `${cx}|${cy}|${EPOCH()}`;
   const r = rng(seedOf(id));
@@ -1314,7 +1351,14 @@ function youSet(lat, lng) {
     if (youMarker) { try { youMarker.remove(); } catch (e) {} youMarker = null; }
     if (CHAR.oLat || CHAR.oLng) {
       const [dx, dz] = metersFrom(lat, lng);
-      if (Math.hypot(dx, dz) > 0.5) { CHAR.face = Math.atan2(dx, dz) + Math.PI; CHAR.animUntil = performance.now() + 1600; }
+      /* 🔴 0826 修:這裡原本多一個 `+ Math.PI`,牧人整整**背反 180°** ——
+         往前走看到的是臉、往回走看到的是後腦,兩個方向都像在倒退
+         (使用者按方向鍵才發現;以前只有「🚶 走一步」鈕,羊四面八方都有,
+          朝向反了很難察覺,所以這個 bug 從羊10(0803)活到現在)。
+         ★ **證據不是猜的**:同一支檔裡羊的朝向是 `atan2(-x, -z)`(望向牧人)、
+           跟隨小隊是 `atan2(ax-x, az-z)`,兩處都**沒有** +π ⇒ 牧人這一行才是特例。
+           截圖也對得上:按上看到臉、按下看到頭髮。 */
+      if (Math.hypot(dx, dz) > 0.5) { CHAR.face = Math.atan2(dx, dz); CHAR.animUntil = performance.now() + 1600; }
     }
     CHAR.oLat = lat; CHAR.oLng = lng;
     if (map) map.triggerRepaint();
@@ -1383,7 +1427,12 @@ function initFlat() {
 try {
   window.__sqmap = {
     is3d: () => mapIs3d, booting: () => mapBooting, failed: () => mlFailed, map: () => map,
-    chars: () => ({ ready: charReady, shep: !!CHAR.shep, sheep: CHAR.sheep.length, scale: CHAR.scale, walking: performance.now() < CHAR.animUntil }),
+    chars: () => ({ ready: charReady, shep: !!CHAR.shep, sheep: CHAR.sheep.length, scale: CHAR.scale,
+      walking: performance.now() < CHAR.animUntil,
+      /* 🔬 face=繞 y 的朝向角。模型前方是 +z ⇒ 世界方向 =(sin face, cos face) 於 (x=東, z=-北) 座標。
+         驗收判準用「**面朝走的方向**」(兩者點積≈1):那對任何視角、任何 bearing 都成立,
+         比「按上要背對鏡頭」穩健得多。 */
+      face: CHAR.face, faceVec: [Math.sin(CHAR.face), Math.cos(CHAR.face)] }),
     setScale: (v) => { CHAR.scale = v; if (window._sheepList) syncChars(window._sheepList); },   // 給驗收腳本調大小用
     /* 🐑 羊14 / 🌅 羊11 的驗收把手(只讀;setHour 是唯一的寫,而它只換打光不碰玩法) */
     escort: () => ({
@@ -1747,10 +1796,18 @@ $('walkBtn').onclick = () => { demoTarget = null; stepTo(window._near); };
      ② 有面板開著(羊圈/明信片/慶祝畫面)—— 那時方向鍵是在捲頁面
      ③ 帶了修飾鍵(Ctrl/Alt/Meta)—— 那是瀏覽器快捷鍵,不是走路 */
 const KEY_STEP_M = 12;                       // 一步 12 公尺(抓羊半徑 30m ⇒ 兩三步就到得了)
+/* ⚠ 「上」是**畫面的上方**,不是正北 —— 立體地圖有 bearing(目前 -15°),
+   直接把上對成正北的話,走的方向會和畫面斜 15°(小,但「按上卻往斜前方飄」是說不清的怪)。
+   MapLibre 的 bearing = 畫面上方所對應的羅盤方位角 ⇒ 上=bearing、右=bearing+90。
+   平面地圖(Leaflet)沒有 bearing,拿 0 ⇒ 上就是正北,行為與從前相同。 */
 function stepDir(dx, dy) {
   if (!demo || !pos) return;                 // ★ 只有客廳模式;GPS 模式絕不用鍵盤動座標
-  const dLat = (dy * KEY_STEP_M) / 110574;
-  const dLng = (dx * KEY_STEP_M) / (111320 * Math.cos(pos.lat * Math.PI / 180));
+  let b = 0;
+  try { if (mapIs3d && map && map.getBearing) b = map.getBearing() * Math.PI / 180; } catch (e) {}
+  const north = dy * Math.cos(b) - dx * Math.sin(b);
+  const east = dy * Math.sin(b) + dx * Math.cos(b);
+  const dLat = (north * KEY_STEP_M) / 110574;
+  const dLng = (east * KEY_STEP_M) / (111320 * Math.cos(pos.lat * Math.PI / 180));
   onPos(pos.lat + dLat, pos.lng + dLng);
   mapPanTo(pos.lat, pos.lng);
 }
@@ -2055,6 +2112,14 @@ function showMilestone(m) {
 try {
   window.__sqmile = { hit: (n) => milestoneHit(n == null ? flockCount() : n), show: showMilestone, list: () => MILESTONES };
   window.__sqday = { isFirst: isDayFirst, key: todayKey };
+  /* 🐑 密度的驗收把手:量「直走一公里遇到幾隻」要用**遊戲自己的**生成與距離函式,
+     驗收腳本自己複製一份公式的話,量到的密度就是假的(艦隊鐵則:量尺不可自寫規則)。 */
+  window.__sqdens = {
+    now: () => ({ key: densityKey(), cell: CELL, spawn: SPAWN }),
+    set: (k) => { save.density = k; applyDensity(); return densityKey(); },
+    around: (lat, lng) => sheepAround(lat, lng),
+    dist: distM,
+  };
   /* ⌨ 驗收用:讀目前座標(唯讀)。驗「鍵盤有沒有真的把人走動」與
      「GPS 模式下鍵盤**不可以**動座標」兩件事都要它。 */
   window.__sqpos = () => (pos ? { lat: pos.lat, lng: pos.lng, demo } : null);
@@ -2123,6 +2188,18 @@ $('mapColorSw').onchange = (e) => {
   $('map').classList.toggle('pikmin', save.pikminMap);
   toast(save.pikminMap ? '🗺 地圖改成鮮豔配色' : '🗺 地圖改回原本的街道圖', 2400);
 };
+/* 🐑 羊的密度(0826)。★ 選項文字從 DENSITY 表現產 —— 表是單一真相,
+   在 HTML 裡另寫一份 option 遲早和實際數值漂移。 */
+$('densitySel').innerHTML = Object.entries(DENSITY)
+  .map(([k, d]) => `<option value="${k}">${d.label}</option>`).join('');
+$('densitySel').value = densityKey();
+$('densitySel').onchange = (e) => {
+  save.density = DENSITY[e.target.value] ? e.target.value : 'dense';
+  persist();
+  applyDensity();
+  toast(`🐑 密度改成「${DENSITY[save.density].label}」——這一帶的羊重新排過了`, 4200);
+};
+
 /* 🌅 羊11:時段氛圍開關 */
 $('todSw').checked = todOn();
 $('todSw').onchange = (e) => {
