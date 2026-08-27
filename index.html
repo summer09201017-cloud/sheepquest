@@ -173,6 +173,9 @@
   <!-- 📍 0731:把「定位精度」講出來。抓羊要 30 公尺內,±200m 的粗定位會讓人
        「走到了卻抓不到」,以為遊戲壞了 —— 那不是 bug,是 GPS 還沒收斂。 -->
   <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 30 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
+  <!-- 🚶 計步:預設不顯示,按下「開始計步」才出現(iOS 的動作感測授權只認使用者手勢) -->
+  <span class="chip" id="stepChip" style="display:none" title="今天走的步數(累計/連續天數)">🚶 <span id="stepToday">0</span> 步</span>
+  <button class="btn" id="stepBtn" title="開始計步(像皮克敏一樣記錄走了幾步)。⚠ 網頁拿不到手機系統的計步器,是用動作感測自己數的,會比系統計步器少;鎖屏或切到背景時不會計">🚶 計步</button>
   <span class="grow"></span>
   <button class="btn" id="ttsBtn" title="把經文唸出來(給還不識字的孩子);按一下可以關掉">🔊 朗讀</button>
   <button class="btn" id="bgmBtn" title="背景音樂與音效(打到獸、被獸撞到…);按一下可以關掉。和「朗讀」是分開的兩個開關,教室裡常只想關音樂">🎵 音樂</button>
@@ -475,6 +478,9 @@
        之後主 script 才會執行;反過來放的話主 script 讀到 undefined。
      ★ 載不到就整塊收起來(同 three.js 的慣例):下面所有用它的地方都先問 if (window.SheepDex)。 -->
 <script src="./sheepdex.js"></script>
+<!-- 🚶 計步(皮克敏式)。★ 這支是**垂直搬運的複本**,正本 = skill step-pedometer/assets/pedometer.js
+     —— 請勿就地改;三份(正本/本站/sheepflock3d)md5 必須逐位元相同。 -->
+<script src="./pedometer.js"></script>
 <script>
 /* ═══ 尋羊記(路加福音 15)═══
    零個資鐵則:位置只在本機,絕不上傳;收藏存 localStorage。
@@ -1679,8 +1685,66 @@ function refreshSheep() {
   $('count').textContent = flockCount();
 }
 let _placeCell = null;
+/* ══════════════════════════════════════════════════════════════════════════════
+   🚶 計步(皮克敏式)—— 0827 使用者點名「sheepflock3d 與尋羊記,要跟皮克敏一樣能計步」
+   ══════════════════════════════════════════════════════════════════════════════
+   ⚠⚠ 三個前提一定要對使用者講清楚,不可以裝作跟皮克敏一樣準:
+     ① **web 沒有計步 API** —— 手機系統的計步器(HealthKit / Google Fit)網頁拿不到。
+        這裡是用 devicemotion 的加速度自己數峰值,一定比系統計步器少。
+     ② **鎖屏 / 切到背景就不再收到感測事件** ⇒ 走路時把手機收起來不會被算到。
+        皮克敏是原生 App、拿得到系統計步器,所以它可以;網頁做不到,這是平台限制不是 bug。
+     ③ **從 LINE 點進來會拿不到感測器**(教會的連結都走 LINE 發)——
+        而且使用者在手機設定裡怎麼調都沒用,唯一的路是「用外部瀏覽器開啟」。
+     ⇒ 拿不到動作感測時自動退回「GPS 位移 ÷ 步幅」估算,並在畫面上標明是**估算**。
+   ★ 存在既有的 save 物件裡(save.steps),**不新開 localStorage 鍵** ——
+     這樣它自動跟著既有的羊圈匯出/匯入走,不會出現「換手機步數不見」的漏接
+     (backup-chain-guard #42 攔的正是這種)。 */
+let ped = null;
+function paintSteps(st) {
+  const chip = $('stepChip');
+  if (!chip) return;
+  chip.style.display = 'inline-block';
+  $('stepToday').textContent = String(st.today);
+  const est = st.mode === 'gps' ? '(GPS 估算)' : '';
+  chip.title = `今天 ${st.today} 步${est}・近 7 天 ${st.week}・累計 ${st.total}・連續 ${st.streak} 天
+`
+    + '⚠ 網頁拿不到手機系統的計步器,是用動作感測自己數的,會比系統計步器少;鎖屏或切到背景時不會計。';
+}
+function initPedometer() {
+  if (ped || typeof Pedometer === 'undefined') return;
+  ped = Pedometer.create({
+    load: () => save.steps || null,
+    save: (st) => { save.steps = st; persist(); },
+    onChange: paintSteps,
+  });
+  paintSteps(ped.stats());
+}
+/* 開始計步:一定要在**使用者手勢**裡呼叫(iOS 的 requestPermission 只認手勢)。
+   ★ 訊息一律講「發生了什麼」而不是「失敗」—— 被 LINE 擋住、與使用者按了拒絕,
+     是兩件不同的事,下一步也不同(換瀏覽器 vs 去系統設定)。 */
+function startPedometer() {
+  initPedometer();
+  if (!ped) { toast('這台裝置沒有動作感測,計步用不了。', 3600); return; }
+  const inApp = ped.inAppBrowser();
+  ped.start().then((r) => {
+    paintSteps(ped.stats());
+    if (r.mode === 'motion') {
+      toast('🚶 開始計步了!走路時把畫面留著(切到背景或鎖屏就不會計 —— 網頁拿不到系統計步器)。');
+    } else if (String(r.reason || '').indexOf('inapp-') === 0 || inApp) {
+      toast(`🚶 你是從 ${inApp || 'App 內建瀏覽器'} 點進來的,那裡拿不到動作感測(在手機設定裡調也沒用)。`
+        + '先用 GPS 位移估算;想準一點請用「在瀏覽器開啟」再進來。');
+    } else if (r.reason === 'denied') {
+      toast('🚶 動作感測被拒絕了,先用 GPS 位移估算。要改的話到手機設定裡把這個網站的「動作與方向」打開。');
+    } else {
+      toast('🚶 這台裝置沒有動作感測,先用 GPS 位移估算(標明是估算,不會假裝準)。');
+    }
+  });
+}
+
 function onPos(lat, lng, acc) {
   pos = { lat, lng };
+  // 🚶 GPS 軌:motion 可用時 addGpsFix 自己會回 0(兩軌不相加,不然 double count)
+  if (ped) ped.addGpsFix(lat, lng, acc, Date.now());
   /* 📍 0731:精度要讓玩家看得到。GPS 剛開機時 accuracy 常是 ±100~2000m,
      那時「走到羊身邊」根本不會成立(要 25m 內)——沒講出來就變成「遊戲壞了」的客訴。 */
   if (acc != null && isFinite(acc)) {
@@ -3008,6 +3072,19 @@ $('shepStyleSel').onchange = e => {
 })();
 $('ttsBtn').onclick = () => TTS.toggle();
 $('bgmBtn').onclick = () => SFX.toggle();
+/* 🚶 計步鈕。★ 必須是**使用者手勢**(iOS 的 DeviceMotionEvent.requestPermission 只認手勢)——
+   不可以搬到載入時自己啟動,那樣 iOS 永遠拿不到感測器。
+   已經在跑就顯示統計,不要重複要授權。 */
+$('stepBtn').onclick = () => {
+  if (ped && ped.isRunning()) {
+    const st = ped.stats();
+    toast(`🚶 今天 ${st.today} 步・近 7 天 ${st.week}・累計 ${st.total}・連續 ${st.streak} 天`);
+    return;
+  }
+  startPedometer();
+};
+// 開場先把上次存的步數畫出來(不啟動感測、不要授權——那要等使用者按鈕)
+initPedometer();
 /* 🔓 音訊解鎖:瀏覽器規定要在**使用者手勢**裡建 AudioContext。
    掛在 document 的 pointerdown(capture、once)⇒ 孩子按下的第一顆鈕就解開,之後都能發聲。 */
 document.addEventListener('pointerdown', () => SFX.unlock(), { capture: true, once: true });
