@@ -247,6 +247,12 @@
   <button class="btn" id="viewChip" style="font-size:13px;padding:6px 10px;font-weight:800">🎥 斜視角</button>
   <button class="btn" id="zoomIn" style="font-size:20px;padding:4px 12px;font-weight:800" title="拉近(看得出自己在走)">＋</button>
   <button class="btn" id="zoomOut" style="font-size:20px;padding:4px 12px;font-weight:800" title="拉遠(看整片)">－</button>
+  <!-- ⛶ 手機全螢幕(0827 使用者點名):把瀏覽器網址列收起來,畫面多出 ~250px。
+       ★ 放在右側控制列,**不放 .top** —— 那一排量過就是滿的(見 verify-topbar)。
+       ⚠ id 叫 mapFsBtn **不可以叫 fsBtn**:那個 id 早就被 3D 戰鬥畫面的「⛶ 放大畫面」用了
+         ⇒ 撞 id 的後果是兩個 onclick 互相蓋掉,而 querySelector 只拿得到第一個
+         —— 不會報錯,只會「其中一顆鈕按了沒反應」。首版就是這樣撞的。 -->
+  <button class="btn" id="mapFsBtn" style="font-size:17px;padding:5px 11px;font-weight:800" title="全螢幕(把瀏覽器網址列收起來)">⛶</button>
 </div>
 <div class="bottom">
   <!-- 🪢 0826:從獨立的 fixed 搬進這一列 —— 原本 fixed 在 bottom:74px,
@@ -586,10 +592,15 @@ const flockCount = () => Object.keys(save.flock).length;
    ⚠ 安全前提(0825 使用者立卡時就寫死的):羊在畫面上只能「瞄一眼就好」,
      **不做任何需要盯著看的互動** —— 不可點、沒有數字、不擋路。邊走邊玩的遊戲,
      任何「需要盯著螢幕」的東西都是安全問題,不是功能。 */
-const ESCORT_MAX = 5;                       // 上限 5 隻(與「牧羊人與羊群 3D」的伴行數一致)
+/* ⚠ 0827 使用者真機回報:「牧人身後跟了 5 隻羊,太擠了…看起來是 5 隻羊黏在一起」。
+   ⇒ 上限 5 → 3。**不是美感問題**:近景視角下五隻羊的體積會把牧人整個埋掉,
+     而牧人是玩家用來判斷「我在哪、我朝哪走」的錨點。 */
+const ESCORT_MAX = 3;                       // 上限 3 隻(0827 從 5 收下來)
 const TRAIL_STEP_M = 6;                     // 真實 GPS:走滿 6m 才推進一格(抖動門檻)
 const TRAIL_STEP_DEMO_M = 1.5;              // 客廳測試模式:見下面那段註解
-const TRAIL_GAP = 2;                        // 每隻羊隔幾格(2 格 ≈ 12m,60° 俯角下看起來剛好是一列)
+/* ⚠ 0827 一起調:2 格在近景視角下**看起來是黏在一起的**(羊本身就有體積,
+   而近景的每公尺像素數是斜視角的兩倍)⇒ 3 格 ≈ 18m,羊與羊之間看得到縫。 */
+const TRAIL_GAP = 3;                        // 每隻羊隔幾格(3 格 ≈ 18m)
 const TRAIL = [];                           // [{lat,lng}, …] 新的在前面
 /* 這一格該不該推進?**頂層純函數**,驗收量尺與遊戲共用同一份
    (照艦隊慣例:量尺一旦自己複製一份規則,量出來的東西就是假的)。
@@ -1273,11 +1284,25 @@ function pastelize() {
      立體地圖照樣能玩(和羊9 同一條「不能因為漂亮就壞掉」的路)。 */
 let charReady = false, charT = null, charLayerOn = false;
 const CHAR = {
-  scale: 30, oLat: 0, oLng: 0, shep: null, sheep: [], escort: [], dogs: [], dogT: 0,
+  scale: 26, oLat: 0, oLng: 0, shep: null, sheep: [], escort: [], dogs: [], dogT: 0,   // ← 0827:實際值由 charScale() 依視角算(見那支的註解)
   animUntil: 0, face: 0, t0: 0,
   lights: null,                         // 🌅 羊11:{hemi,dir,rim} —— 時段氛圍換的就是這三盞
 };
 const use3dChars = () => mapIs3d && charReady;
+
+/* 🐕 狗遊蕩目標點的確定性偽亂數。**刻意不用 Math.random**:
+   這張地圖會重畫同一幀(triggerRepaint),用真亂數的話狗會在原地抖;
+   而且驗收要能重現「兩隻狗走的不是圓、也不同步」,量尺不能吃隨機。
+   回傳 {a, r} 都在 0~1(a=角度比例、r=半徑比例)。 */
+function dogSeedXY(dog, leg) {
+  let h = (dog + 1) * 374761393 + leg * 668265263;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  h = h ^ (h >>> 16);
+  const a = ((h >>> 0) % 10000) / 10000;
+  let g = h * 2246822519 + 3266489917;
+  g = (g ^ (g >>> 15)) >>> 0;
+  return { a, r: (g % 10000) / 10000 };
+}
 
 /* ── 🌅 羊11(2026-08-26):時段氛圍 —— 光線與影子方向跟著真實時間走 ──
    清晨偏暖、正午白、黃昏橘紅、夜晚偏藍;方向光的方位角照太陽走(東 → 南 → 西),
@@ -1392,17 +1417,42 @@ async function addCharLayer() {
         CHAR.shep.position.y = walking ? Math.abs(Math.sin((now - CHAR.t0) / 90)) * 1.1 : 0;
         CHAR.shep.rotation.y = CHAR.face;
       }
-      /* 🐕 兩隻狗繞著牧人巡邏(相位差 π=一前一後,同 sheepflock3d 的隊形)。
-         ★ **只在走動時推進角度**:這張地圖是省電設計(只有走動後 1.6 秒才連續重繪),
-           讓狗一直跑就等於一直 triggerRepaint ⇒ 手機會一直發熱。
-           站著不動時狗停在原地(牠們也在休息),走起來才繞圈跑。 */
+      /* 🐕 兩隻狗在牧人旁邊**自由亂跑**(0827 使用者:「目前是只會逆時針旋轉,
+         能否改成自由亂跑,不要固定逆時針旋轉」)。
+         ★ 原本是 `a = dogT + i*π` 的等速圓周 ⇒ 永遠同一個方向、同一個半徑、同樣的相位差,
+           看久了就是兩隻機器狗在跑跑步機。
+         ★ 改成「各自有一個遊蕩目標點,到了就換下一個」:
+           · 目標點用**確定性偽亂數**(dogSeedXY,吃編號與第幾次換點)—— 不用 Math.random,
+             這樣同一台裝置重畫同一幀不會抖,驗收也量得出來。
+           · 半徑 0.6~1.9 倍、角度整圈都可能 ⇒ 兩隻狗不再對稱、也沒有固定轉向。
+           · 面朝**實際移動方向**(不是切線),停下來時保持上一個朝向,不會原地打轉。
+         ★ **只在走動時推進**這條保留:地圖是省電設計(走動後 1.6 秒才連續重繪),
+           讓狗一直跑=一直 triggerRepaint ⇒ 手機會一直發熱。站著不動時狗也在休息。 */
       if (CHAR.dogs.length) {
         if (walking) CHAR.dogT += 0.022;
-        const rad = CHAR.scale * 1.55;
+        const R = CHAR.scale * 1.55;
         CHAR.dogs.forEach((d, i) => {
-          const a = CHAR.dogT + i * Math.PI;
-          d.position.set(Math.sin(a) * rad, walking ? Math.abs(Math.sin(CHAR.dogT * 3 + i)) * 0.8 : 0, Math.cos(a) * rad);
-          d.rotation.y = a + Math.PI / 2;              // 面朝切線方向(繞圈跑的姿勢)
+          const u = d.userData;
+          if (u.tx === undefined) { u.tx = 0; u.tz = 0; u.leg = 0; u.px = 0; u.pz = 0; }
+          // 到了目標點(或第一次)就換下一個:各自的節奏,不同步
+          const reached = Math.hypot(u.tx - u.px, u.tz - u.pz) < R * 0.18;
+          if (reached || u.leg === 0) {
+            u.leg += 1;
+            const t = dogSeedXY(i, u.leg);
+            const ang = t.a * Math.PI * 2;
+            const rad = R * (0.6 + t.r * 1.3);
+            u.tx = Math.sin(ang) * rad; u.tz = Math.cos(ang) * rad;
+          }
+          if (walking) {                     // 只有走動時才真的移動(省電那條)
+            const dx = u.tx - u.px, dz = u.tz - u.pz;
+            const dist = Math.hypot(dx, dz) || 1;
+            const spd = R * 0.045 * (0.8 + (i % 2) * 0.35);   // 兩隻速度不同,不會黏成一對
+            u.px += (dx / dist) * spd; u.pz += (dz / dist) * spd;
+            u.face = Math.atan2(dx, dz);     // 面朝實際移動方向
+          }
+          const bounce = walking ? Math.abs(Math.sin(CHAR.dogT * 3 + i * 1.7)) * 0.8 : 0;
+          d.position.set(u.px, bounce, u.pz);
+          d.rotation.y = u.face || 0;
           if (d.userData.tailJ) d.userData.tailJ.rotation.x = Math.sin(now / 120 + i) * 0.5;   // 搖尾巴
         });
       }
@@ -1513,7 +1563,16 @@ function youSet(lat, lng) {
          ★ **證據不是猜的**:同一支檔裡羊的朝向是 `atan2(-x, -z)`(望向牧人)、
            跟隨小隊是 `atan2(ax-x, az-z)`,兩處都**沒有** +π ⇒ 牧人這一行才是特例。
            截圖也對得上:按上看到臉、按下看到頭髮。 */
-      if (Math.hypot(dx, dz) > 0.5) { CHAR.face = Math.atan2(dx, dz); CHAR.animUntil = performance.now() + 1600; }
+      if (Math.hypot(dx, dz) > 0.5) {
+        CHAR.face = Math.atan2(dx, dz); CHAR.animUntil = performance.now() + 1600;
+        /* 🎥 跟臉的視角:轉身之後鏡頭要跟著繞,不然走兩步又變成看後腦。
+           ⚠ 用 easeTo 慢慢轉(不是 jumpTo):瞬間轉 bearing 在手機上看起來像畫面壞掉。 */
+        const vv = VIEWS[viewIdx()];
+        if (vv.faceCam && map && mapIs3d) {
+          const deg = (CHAR.face * 180) / Math.PI;
+          try { map.easeTo({ bearing: vv.faceCam === 'back' ? deg : deg + 180, duration: 700 }); } catch (e) {}
+        }
+      }
     }
     CHAR.oLat = lat; CHAR.oLng = lng;
     if (map) map.triggerRepaint();
@@ -1565,11 +1624,36 @@ function escortFlat() {
    相機愈貼地,前面的建築就愈擋;而這一站的地圖正是**市區**(建築擠出來的量體很高)。
    ⇒ 改成「近景」:傾角收回 52°(不貼地)、鏡頭拉近一級,
      讓牧人與羊變大 —— 那才是使用者要的「感覺得到自己在移動」。 */
+/* 🎥 視角表。0827 使用者兩件:①「近景覺得牧人太大,跟旁邊高樓一樣高」
+     ②「請再增加幾個視角,能讓我多看到牧人的臉」。
+   ★ 看得到臉 = 鏡頭要繞到**牧人正前方**。地圖是 MapLibre,轉鏡頭就是轉 bearing:
+     牧人朝向 face(弧度,0=北、順時針),要看到他的臉 ⇒ bearing = face 的反方向。
+     ⇒ `faceCam: true` 的視角每次 applyView 都把 bearing 對到 CHAR.face + 180°。
+   ⚠ 跟臉的視角**傾角不能太低**:pitch 愈大鏡頭愈貼地,而這一站是市區 ——
+     74° 那一檔踩過「整個畫面被一棟大樓側面佔滿」(註解就在上面)。所以 face 兩檔取 55/62。 */
 const VIEWS = [
   { k: 'tilt',  n: '斜視角', pitch: 60, zoom: 16.3, hint: '像皮克敏,看得到街道與建築' },
   { k: 'close', n: '近景',   pitch: 52, zoom: 17.2, hint: '牧人與羊放大,走一步看得出來' },
+  { k: 'face',  n: '看正臉', pitch: 55, zoom: 17.4, faceCam: true,  hint: '鏡頭繞到牧人正前方,看得到他的臉' },
+  { k: 'over',  n: '過肩',   pitch: 62, zoom: 17.0, faceCam: 'back', hint: '從牧人背後看出去,像跟在他身後走' },
   { k: 'top',   n: '正上方', pitch: 0,  zoom: 16.6, hint: '看全局,像一般地圖' },
 ];
+
+/* 🧍 人物世界比例。0827 量到的事實:原本 CHAR.scale=30、牧人模型原生高 2.98
+     ⇒ **地圖世界裡 89.4 公尺高**(25~30 層樓),而周圍建築的 render_height 多在 8~40m
+     ⇒ 使用者說「跟旁邊高樓一樣高」是**對的,而且講保守了**。
+   ★ 但「刻意放大」本身沒錯(真實比例的人在這個縮放下不到 1 像素,皮克敏也放大)——
+     錯的是**放大量固定不變**:近景把 zoom 拉高一級,牧人在螢幕上變兩倍大,
+     而建築是真公尺數、不會跟著變 ⇒ 愈拉近,牧人相對建築就愈誇張。
+   ⇒ 世界比例改成**跟著 zoom 反向補償**:螢幕上的大小維持差不多,
+     但拉近時牧人的「公尺數」變小 ⇒ 不再比整條街的樓都高。
+     斜視角 ≈ 77m、近景 ≈ 41m(約 12 層樓)、正上方 ≈ 62m。 */
+const CHAR_BASE = 26, CHAR_REF_ZOOM = 16.3;
+function charScale() {
+  const v = VIEWS[viewIdx()];
+  const z = (v.zoom + zoomStep()) - CHAR_REF_ZOOM;
+  return CHAR_BASE / Math.pow(2, Math.max(0, z));   // 只縮不放:拉遠時維持看得到
+}
 const viewIdx = () => {
   const i = VIEWS.findIndex((v) => v.k === save.mapView);
   return i >= 0 ? i : 0;
@@ -1589,8 +1673,28 @@ function applyView(animate) {
   }
   try {
     const to = { pitch: v.pitch, zoom: v.zoom + zoomStep() };
+    /* 🎥 看正臉 / 過肩:把 bearing 轉到牧人的正前方(或正後方)。
+       ★ MapLibre 的 bearing = 畫面上方對應的羅盤方位角;CHAR.face 是牧人朝向(0=北)。
+         想看到臉 ⇒ 鏡頭要在他前面往回看 ⇒ 畫面上方 = 他走的反方向 = face+180°。
+       ⚠ 一律轉成度數再給 MapLibre(它吃度不吃弧度)—— 給弧度不會報錯,只會轉到莫名其妙的方位。 */
+    if (v.faceCam) {
+      const deg = (CHAR.face * 180) / Math.PI;
+      to.bearing = v.faceCam === 'back' ? deg : deg + 180;
+    } else if (mapIs3d) {
+      to.bearing = -15;                      // 其餘視角維持原本的固定斜角
+    }
     if (animate) map.easeTo({ ...to, duration: 420 }); else map.jumpTo(to);
   } catch (e) {}
+  // 🧍 世界比例跟著視角改(見 charScale 的註解:拉近就要縮公尺數,不然牧人比整條街的樓都高)
+  applyCharScale();
+}
+
+/* 把新的世界比例套到已經在場上的人物(不重建模型,只改 scale)。 */
+function applyCharScale() {
+  const want = charScale();
+  if (Math.abs(want - CHAR.scale) < 0.01) return;
+  CHAR.scale = want;
+  if (window._sheepList) { try { syncChars(window._sheepList); } catch (e) {} }
 }
 /* 畫面上常駐一顆膠囊:現在是哪個視角、是不是退回平面了。
    ★ 退回平面時**明講原因**,不然使用者只會覺得「視角自己變了」。 */
@@ -2748,6 +2852,53 @@ $('densitySel').onchange = (e) => {
 /* 🌅 羊11:時段氛圍開關 */
 /* 🎥 視角與縮放的三顆鈕(0826) */
 $('viewChip').onclick = cycleView;
+
+/* ⛶ 全螢幕(0827 使用者點名)。★ 一定要在使用者手勢裡呼叫(瀏覽器的規定)。
+   ⚠ **iOS Safari 的 <div> 不支援 requestFullscreen** —— 那裡拿不到全螢幕是平台限制,
+     不是壞掉;要真的全螢幕只能「加入主畫面」以 PWA 開(本站已經有安裝鈕)。
+     ⇒ 拿不到就明講怎麼辦,不要靜靜沒反應。 */
+function fsSupported() {
+  const el = document.documentElement;
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+async function toggleFullscreen() {
+  const el = document.documentElement;
+  const cur = document.fullscreenElement || document.webkitFullscreenElement;
+  try {
+    if (cur) { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    if (!fsSupported()) {
+      toast('這台裝置的瀏覽器不給網頁全螢幕(iPhone 的 Safari 就是這樣)——請用「📲 安裝到主畫面」開,那樣就是全螢幕了。', 5200);
+      return;
+    }
+    await (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  } catch (e) {
+    toast('這台裝置不給全螢幕——可以改用「📲 安裝到主畫面」。', 4200);
+  }
+}
+$('mapFsBtn').onclick = toggleFullscreen;
+
+/* 🔬 視角/狗/跟隨的驗收把手(同 __sqmap / __sqmile 慣例)。
+   ★ list() 回的是**遊戲自己那一份** VIEWS —— 量尺不可以自己複製一份規則
+     (複製了就會出現「表改了、驗收還是綠的」)。 */
+try {
+  window.__sqview = {
+    list: () => VIEWS,
+    set: (k) => { const i = VIEWS.findIndex((v) => v.k === k); if (i >= 0) { save.mapView = k; persist(); applyView(false); } },
+    now: () => VIEWS[viewIdx()].k,
+    charScale: () => charScale(),
+    escortMax: () => ESCORT_MAX,
+    trailGap: () => TRAIL_GAP,
+  };
+} catch (e) {}
+/* 進出全螢幕都要讓地圖重新量尺寸,不然畫布會停在舊高度(黑邊或被切掉)。 */
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(ev, () => {
+    const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const fb = $('mapFsBtn');
+    if (fb) fb.title = on ? '離開全螢幕' : '全螢幕(把瀏覽器網址列收起來)';
+    setTimeout(() => { try { map && map.resize && map.resize(); } catch (e) {} }, 120);
+  });
+}
 $('zoomIn').onclick = () => zoomBy(1);
 $('zoomOut').onclick = () => zoomBy(-1);
 
