@@ -103,6 +103,288 @@
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════
+     🏆 步數里程碑 —— 0827 使用者拍板「步數換獎勵」,由 AI 決定形狀
+     ══════════════════════════════════════════════════════════════════════════
+     ★ 為什麼是「解鎖經文 + 彩帶」而不是「走 N 步孵一隻羊」:
+       ① 孵羊會**跟核心玩法打架** —— 尋羊記的羊是走到那個地點才找到的(路15:4
+          「去找那失去的羊」),走路本身就是那套神學;再加一條「走路自動生羊」
+          會讓「出門去找」失去意義,也會弄壞既有的出現率平衡。
+       ② **既有引擎可以直接收割**:尋羊記已經有里程碑機制(彩帶+金句+紀念章,
+          慶祝去重記在存檔裡),步數台階走同一套,不新建第二套。
+     ★ 經文全部 **cuv 逐字查驗**過(mcp__cuv__lookup),並照本系列慣例把全形標點
+       正規化成半形(與既有 MILESTONES 一致)。`say` 是唸稿:不帶標點、出處寫成中文數字
+       —— 朗讀一定要把章節出處也唸出來(scripture-voice-guard #27)。
+     ★ 台階串成一條敘事線:走義路 → 有光 → 不疲乏 → 與神同行 → 以諾同行 → 耶穌同行。 */
+  var STEP_MILESTONES = [
+    { n: 1000, em: "👣", ref: "詩 23:3",
+      verse: "「他使我的靈魂甦醒,為自己的名引導我走義路。」——詩篇 23:3",
+      say: "他使我的靈魂甦醒,為自己的名引導我走義路。詩篇二十三篇三節。",
+      word: "一千步!牧人領你走的每一步,都是義路。" },
+    { n: 5000, em: "🕯", ref: "詩 119:105",
+      verse: "「你的話是我腳前的燈,是我路上的光。」——詩篇 119:105",
+      say: "你的話是我腳前的燈,是我路上的光。詩篇一百一十九篇一百零五節。",
+      word: "五千步!前面的路有光,你不是自己在摸黑走。" },
+    { n: 15000, em: "🦅", ref: "賽 40:31",
+      verse: "「他們奔跑卻不困倦,行走卻不疲乏。」——以賽亞書 40:31",
+      say: "他們奔跑卻不困倦,行走卻不疲乏。以賽亞書四十章三十一節。",
+      word: "一萬五千步!等候耶和華的人,行走卻不疲乏。" },
+    { n: 30000, em: "🤝", ref: "彌 6:8",
+      verse: "「只要你行公義,好憐憫,存謙卑的心,與你的神同行。」——彌迦書 6:8",
+      say: "只要你行公義,好憐憫,存謙卑的心,與你的神同行。彌迦書六章八節。",
+      word: "三萬步!走路不只是走路——是與神同行。" },
+    { n: 60000, em: "🌟", ref: "創 5:24",
+      verse: "「以諾與神同行」——創世記 5:24",
+      say: "以諾與神同行。創世記五章二十四節。",
+      word: "六萬步!以諾就是這樣一天一天走出來的。" },
+    { n: 100000, em: "🎊", ref: "路 24:15",
+      verse: "「耶穌親自就近他們,和他們同行」——路加福音 24:15",
+      say: "耶穌親自就近他們,和他們同行。路加福音二十四章十五節。",
+      word: "十萬步!你以為只有自己在走,主一直就走在旁邊。" },
+  ];
+
+  /* 該慶祝哪一個台階?`done` = 已慶祝過的台階(物件或陣列都吃)。
+     ★ 用「>= n 且沒慶祝過」而不是「=== n」——步數是一次跳好幾步的(GPS 軌一次補幾十步),
+       用等號比對的話台階會被跳過去,而且**不會有任何錯誤訊息**。
+       (尋羊記 0826 在羊數上踩過同一條,註解就寫在它的 milestoneHit 旁邊。) */
+  function milestoneDue(total, done) {
+    var has = function (n) {
+      if (!done) return false;
+      if (Array.isArray(done)) return done.indexOf(n) >= 0;
+      return !!done[n];
+    };
+    for (var i = 0; i < STEP_MILESTONES.length; i++) {
+      var m = STEP_MILESTONES[i];
+      if (total >= m.n && !has(m.n)) return m;
+    }
+    return null;
+  }
+
+  /* 下一個台階與還差幾步(UI 用:「還差 N 步到下一段金句」比一個乾巴巴的總數有黏著力) */
+  function nextMilestone(total) {
+    for (var i = 0; i < STEP_MILESTONES.length; i++) {
+      if (total < STEP_MILESTONES[i].n) {
+        return { m: STEP_MILESTONES[i], remain: STEP_MILESTONES[i].n - total };
+      }
+    }
+    return null;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     🗓 格子熱圖的資料(與 reading-footprint 的每日桶同構,那邊的畫法可以直接收割)
+     ══════════════════════════════════════════════════════════════════════════
+     回傳 { weeks: [[cell…]…], max, days, total },cell = {date, steps, level(0~4), future}
+     ★ 週一律**從星期日開始**對齊,並且補滿前後空格 —— 不補的話第一週會歪掉,
+       而歪掉的熱圖看起來像資料錯了。
+     ★ level 用**分位數**不是固定門檻:每個人的步數級距差十倍,固定門檻會讓
+       走得少的人整張圖全白、走得多的人整張圖全滿(兩種都等於沒資訊)。 */
+  function heatmap(state, days, now) {
+    days = days || 182;
+    now = now || Date.now();
+    var todayIso = todayKey(now);
+    var cells = [];
+    var vals = [];
+    for (var i = days - 1; i >= 0; i--) {
+      var iso = todayKey(now - i * 86400000);
+      var v = state.days[iso] || 0;
+      cells.push({ date: iso, steps: v, level: 0, future: false });
+      if (v > 0) vals.push(v);
+    }
+    vals.sort(function (a, b) { return a - b; });
+    var q = function (p) { return vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * p))] : 0; };
+    var q1 = q(0.25), q2 = q(0.5), q3 = q(0.75);
+    for (var j = 0; j < cells.length; j++) {
+      var s = cells[j].steps;
+      cells[j].level = s <= 0 ? 0 : s <= q1 ? 1 : s <= q2 ? 2 : s <= q3 ? 3 : 4;
+    }
+    // 前面補空格,讓第一格落在它真正的星期幾
+    var firstDow = new Date(cells[0].date + "T00:00:00Z").getUTCDay();
+    var padded = [];
+    for (var p = 0; p < firstDow; p++) padded.push(null);
+    padded = padded.concat(cells);
+    while (padded.length % 7 !== 0) padded.push(null);
+    var weeks = [];
+    for (var w = 0; w < padded.length; w += 7) weeks.push(padded.slice(w, w + 7));
+    var total = 0;
+    for (var t = 0; t < cells.length; t++) total += cells[t].steps;
+    return { weeks: weeks, max: vals.length ? vals[vals.length - 1] : 0, days: days, total: total, todayIso: todayIso };
+  }
+
+  /* 本月 / 近 N 月的加總(UI 的「本月 / 近 3 月 / 近 12 月」用) */
+  function rangeTotal(state, months, now) {
+    now = now || Date.now();
+    var cut = new Date(now);
+    cut.setUTCMonth(cut.getUTCMonth() - (months - 1));
+    cut.setUTCDate(1);
+    var cutIso = cut.toISOString().slice(0, 10);
+    var sum = 0;
+    for (var k in state.days) {
+      if (!Object.prototype.hasOwnProperty.call(state.days, k)) continue;
+      if (k >= cutIso) sum += state.days[k];
+    }
+    return sum;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     🖼 月報分享卡(直式 PNG;canvas 2D、零相依、可離線)
+     ══════════════════════════════════════════════════════════════════════════
+     ★ 範式同 [[share-card]] / reading-footprint §7:直式、大字、日曆熱圖 + 統計 + 一句金句。
+     ⚠ 卡上的金句一律用**已經 cuv 查驗過**的那幾句(STEP_MILESTONES 裡的),
+       不可以現場拼一句 —— 卡片會被傳到 LINE 群組,錯的經文會一路傳下去。
+     ⚠ 不畫任何個資:沒有名字、沒有地點、沒有經緯度(卡片是要拿去分享的)。
+     用法:Pedometer.drawMonthCard(canvasEl, { state, title, now })  → 回傳 canvas */
+  function drawMonthCard(canvas, o) {
+    o = o || {};
+    var state = o.state || { days: {} };
+    var now = o.now || Date.now();
+    var W = 900, H = 1010;
+    canvas.width = W; canvas.height = H;
+    var g = canvas.getContext("2d");
+    var hm = heatmap(state, 182, now);
+    var st = statsOf(state, now);
+
+    var bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#123a2a"); bg.addColorStop(1, "#0a1f18");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+    g.textAlign = "center";
+    g.fillStyle = "#ffe9a8";
+    g.font = "bold 62px system-ui, sans-serif";
+    g.fillText(o.title || "🚶 走路足跡", W / 2, 110);
+    g.fillStyle = "#cfe9dd";
+    g.font = "34px system-ui, sans-serif";
+    g.fillText(todayKey(now).slice(0, 7).replace("-", " 年 ") + " 月", W / 2, 168);
+
+    // 三個大數字
+    var nums = [
+      { k: "今天", v: st.today },
+      { k: "本月", v: rangeTotal(state, 1, now) },
+      { k: "累計", v: st.total },
+    ];
+    for (var i = 0; i < nums.length; i++) {
+      var cx = W / 6 + (W / 3) * i;
+      g.fillStyle = "#8fe3b8";
+      g.font = "bold 58px system-ui, sans-serif";
+      g.fillText(String(nums[i].v), cx, 275);
+      g.fillStyle = "#a9c9bd";
+      g.font = "28px system-ui, sans-serif";
+      g.fillText(nums[i].k, cx, 318);
+    }
+    g.fillStyle = "#ffd98a";
+    g.font = "bold 36px system-ui, sans-serif";
+    g.fillText("連續 " + st.streak + " 天出門走路", W / 2, 380);
+
+    // 熱圖(近 26 週)
+    // 熱圖水平居中(x0 由實際週數算,不寫死 —— 週數會隨 days 參數變)
+    var CELL = 22, GAP = 5, y0 = 430;
+    var x0 = Math.round((W - hm.weeks.length * (CELL + GAP) + GAP) / 2);
+    var LEVELS = ["#1b3a2e", "#2f6b4a", "#48956a", "#6cc189", "#a7ecb6"];
+    for (var w = 0; w < hm.weeks.length; w++) {
+      for (var d = 0; d < 7; d++) {
+        var cell = hm.weeks[w][d];
+        if (!cell) continue;
+        g.fillStyle = LEVELS[cell.level];
+        g.fillRect(x0 + w * (CELL + GAP), y0 + d * (CELL + GAP), CELL, CELL);
+      }
+    }
+    g.textAlign = "center";
+    g.fillStyle = "#a9c9bd";
+    g.font = "26px system-ui, sans-serif";
+    g.fillText("近半年每天走的步數(顏色越亮=走得越多)", W / 2, y0 + 7 * (CELL + GAP) + 48);
+
+    // 🏆 下一段金句還差幾步(比一個乾巴巴的總數有黏著力)
+    var nx = nextMilestone(st.total);
+    g.fillStyle = "#8fe3b8";
+    g.font = "30px system-ui, sans-serif";
+    g.fillText(nx
+      ? "還差 " + nx.remain.toLocaleString() + " 步解鎖下一段金句"
+      : "六段金句全部解鎖了", W / 2, y0 + 7 * (CELL + GAP) + 104);
+
+    // 金句:用「已達成的最高台階」那一句(全部 cuv 查驗過)
+    var reached = null;
+    for (var m = 0; m < STEP_MILESTONES.length; m++) {
+      if (st.total >= STEP_MILESTONES[m].n) reached = STEP_MILESTONES[m];
+    }
+    var line = reached ? reached.verse : "「他使我的靈魂甦醒,為自己的名引導我走義路。」——詩篇 23:3";
+    g.fillStyle = "#ffe9a8";
+    g.font = "32px system-ui, sans-serif";
+    wrapText(g, line, W / 2, y0 + 7 * (CELL + GAP) + 190, W - 140, 50);
+
+    g.fillStyle = "#7fa596";
+    g.font = "24px system-ui, sans-serif";
+    g.fillText("步數由手機動作感測估算,會比系統計步器少", W / 2, H - 56);
+    return canvas;
+  }
+
+  /* 逐字斷行,但**把連續的非中文字元當成一個不可切的字塊**。
+     ⚠ 純逐字版會把出處切開:「路加福音 24:1 / 5」—— 首版實測就是這樣斷的,
+       而經文出處被切一半在分享卡上特別糟(卡片會被傳到群組)。 */
+  function wrapText(g, text, cx, y, maxW, lh) {
+    var toks = [], cur = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      var ascii = ch.charCodeAt(0) < 0x2000 && ch !== " ";   // 數字/英文/半形標點
+      if (ascii) { cur += ch; continue; }
+      if (cur) { toks.push(cur); cur = ""; }
+      toks.push(ch);
+    }
+    if (cur) toks.push(cur);
+    var line = "", lines = [];
+    for (var k = 0; k < toks.length; k++) {
+      var t = line + toks[k];
+      if (g.measureText(t).width > maxW && line) { lines.push(line); line = toks[k]; }
+      else line = t;
+    }
+    if (line) lines.push(line);
+    for (var j = 0; j < lines.length; j++) g.fillText(lines[j], cx, y + j * lh);
+    return lines.length;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     📤 足跡匯出 / 匯入(0827 訂正)
+     ══════════════════════════════════════════════════════════════════════════
+     ⚠⚠ **這一段是在修一句我自己寫錯的話。** 原本的註解寫「步數存在 save 裡,
+       自動跟著既有的羊圈匯出/匯入走」—— **是假的**:尋羊記的匯出走
+       `SheepDex.exportDexText(loadDex())`,只匯出**羊圈圖鑑**,不匯出 save 物件
+       ⇒ 步數其實換手機就不見,而匯出/匯入都會說「完成」。
+       ★ 這就是 backup-chain-guard #42 抓的那型:匯出說成功、匯入說成功、零紅燈,
+         只有換手機那天才發現東西沒了。★★ 而我是**寫在註解裡騙了自己**,不是漏做。
+     ⇒ 正解不是改文件,是給步數自己一份可攜格式。**刻意不塞進羊圈格式**:
+       那份是跨站共用的,而且它的隱私註解明確寫著「不寫地點、不寫經緯度,
+       免得日後順手補上」—— 往裡面加欄位就是在鬆動那條。
+     ★ 合併規則是**每天取大值,不是相加**:同一天在兩台裝置上都記了,相加會 double count;
+       取大值最壞情況是少算,而本包的原則一直是**寧可少算不多算**。
+     ★ 兩站不同 origin ⇒ 這份格式順便讓「尋羊記 ↔ 3D 站」的足跡可以互搬。 */
+  var IO_TAG = "hfpc-steps-v1";
+
+  function exportText(state) {
+    var days = {};
+    for (var k in state.days) {
+      if (Object.prototype.hasOwnProperty.call(state.days, k)) days[k] = state.days[k];
+    }
+    return JSON.stringify({ t: IO_TAG, v: 1, days: days });
+  }
+
+  /* 回傳合併了幾天;**格式不對回 -1**(不是 0)——
+     「匯入 0 天」與「檔案壞掉」是兩件事,都印「完成」就是無聲失敗
+     (sheepdex 的 importDexText 刻意用 -1 區分,這裡照抄那個約定)。 */
+  function importText(state, text) {
+    var o = null;
+    try { o = JSON.parse(String(text || "").trim()); } catch (e) { return -1; }
+    if (!o || o.t !== IO_TAG || !o.days || typeof o.days !== "object") return -1;
+    var merged = 0;
+    for (var k in o.days) {
+      if (!Object.prototype.hasOwnProperty.call(o.days, k)) continue;
+      if (!DAY_RE.test(k)) continue;
+      var v = Math.floor(Number(o.days[k]));
+      if (!isFinite(v) || v <= 0) continue;
+      var cur = state.days[k] || 0;
+      if (v > cur) { state.days[k] = v; merged++; }     // 取大值,不相加
+    }
+    prune(state.days);
+    return merged;
+  }
+
   function create(opts) {
     opts = opts || {};
     var state = normalize(opts.load ? opts.load() : null);
@@ -226,5 +508,10 @@
     STEP_THRESH: STEP_THRESH, WARMUP_SAMPLES: WARMUP_SAMPLES,
     inAppBrowser: inAppBrowser, statsOf: statsOf, normalize: normalize,
     todayKey: todayKey, haversine: haversine,
+    // 🏆 里程碑 + 🗓 熱圖 + 🖼 月報卡(0827)
+    STEP_MILESTONES: STEP_MILESTONES, milestoneDue: milestoneDue, nextMilestone: nextMilestone,
+    heatmap: heatmap, rangeTotal: rangeTotal, drawMonthCard: drawMonthCard,
+    // 📤 足跡可攜(0827 訂正:步數本來不在任何匯出鏈裡)
+    IO_TAG: IO_TAG, exportText: exportText, importText: importText,
   };
 });

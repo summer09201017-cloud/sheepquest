@@ -220,7 +220,7 @@
 //     而 #nearBar 又蓋住其中兩顆。修法=flex-wrap + 把 nearBar 收進同一列獨佔一行。
 //     ★ 這個 repo 的頂列 0731 修過同一種病(「羊圈只剩一個羊字」),底部列一直沒修 ——
 //       因為那三顆鈕只有客廳模式才出現,而客廳模式大家都在桌機上測。
-const CACHE = 'sheepquest-v31';
+const CACHE = 'sheepquest-v32';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 🚶 計步共用檔:**一定要進 CORE**,否則離線時「有計步鈕、按了沒反應」
   //    (同上面 sheepdex.js 漏 CORE 會讓羊圈整區收起來的那個坑)

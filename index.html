@@ -447,6 +447,41 @@
 
 <!-- 🏆 羊1(0826):里程碑慶祝。彩帶 + 金句(曉臻唸) + 紀念章。
      ★ 一定要有「繼續找」的出口鈕:自動關掉的慶祝畫面會把還沒讀完經文的孩子打斷。 -->
+<!-- 🗓 足跡面板(0827):格子熱圖 + 統計 + 月報分享卡。點上排的步數膠囊打開 -->
+<section class="panel" id="stepPanel">
+  <h1>🚶 走路足跡</h1>
+  <div id="stepStats" style="font-size:16px;line-height:1.9;margin:10px auto;max-width:min(560px,92vw)"></div>
+  <canvas id="stepHeat" style="display:block;margin:10px auto;max-width:min(560px,92vw);image-rendering:pixelated"></canvas>
+  <div class="hint" style="max-width:min(560px,92vw);margin:0 auto">近半年每天走的步數,顏色越亮=走得越多。</div>
+  <!-- ⚠ 誠實說明:不寫的話使用者會拿它跟手機系統計步器比,然後以為壞了 -->
+  <div class="hint" style="max-width:min(560px,92vw);margin:8px auto">
+    ⚠ 網頁拿不到手機系統的計步器,這是用動作感測自己數的,<b>會比系統計步器少</b>;
+    切到背景或鎖屏時不會計,從 LINE 點進來也拿不到感測器(要用外部瀏覽器開啟)。
+  </div>
+  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn primary" id="stepBack">← 回去找羊</button>
+    <button class="btn" id="stepCardBtn">🖼 做一張月報卡</button>
+    <!-- 📤 步數不在羊圈匯出鏈裡(0827 訂正),所以自己要有一份可攜格式 -->
+    <button class="btn" id="stepIoBtn">📤 換手機/搬足跡</button>
+  </div>
+  <div id="stepIoBox" style="display:none;margin-top:12px;max-width:min(560px,92vw);margin-inline:auto">
+    <div class="hint">把下面整段文字複製到另一台手機(或另一站)的同一個框,按「📥 匯入」。
+      <b>合併時每天取大值、不相加</b> —— 同一天在兩台都記了,相加會變成兩倍。</div>
+    <textarea id="stepIoText" style="width:100%;height:110px;margin-top:8px;font-size:12px"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+      <button class="btn" id="stepIoCopy">📋 複製</button>
+      <button class="btn" id="stepIoIn">📥 匯入</button>
+    </div>
+  </div>
+  <div id="stepCardWrap" style="display:none;margin-top:14px">
+    <canvas id="stepCardCv" style="width:min(320px,82vw);border-radius:14px"></canvas>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="stepCardSave">⬇ 下載</button>
+      <button class="btn" id="stepCardShare">📤 分享</button>
+    </div>
+  </div>
+</section>
+
 <section class="panel" id="milePanel">
   <div class="ribbon" id="mileEm">🎊</div>
   <h1 id="mileTitle">🏆 十隻了!</h1>
@@ -1696,9 +1731,16 @@ let _placeCell = null;
      ③ **從 LINE 點進來會拿不到感測器**(教會的連結都走 LINE 發)——
         而且使用者在手機設定裡怎麼調都沒用,唯一的路是「用外部瀏覽器開啟」。
      ⇒ 拿不到動作感測時自動退回「GPS 位移 ÷ 步幅」估算,並在畫面上標明是**估算**。
-   ★ 存在既有的 save 物件裡(save.steps),**不新開 localStorage 鍵** ——
-     這樣它自動跟著既有的羊圈匯出/匯入走,不會出現「換手機步數不見」的漏接
-     (backup-chain-guard #42 攔的正是這種)。 */
+   ★ 存在既有的 save 物件裡(save.steps),**不新開 localStorage 鍵**。
+   ⚠⚠ **0827 當日訂正:這裡原本寫「自動跟著既有的羊圈匯出/匯入走」—— 那是假的。**
+     本站的匯出走 `SheepDex.exportDexText(loadDex())`,只匯出**羊圈圖鑑**,不匯出 save 物件
+     ⇒ 步數其實換手機就不見,而匯出/匯入兩邊都會說「完成」。
+     ★ 正是 backup-chain-guard #42 那型:匯出說成功、匯入說成功、零紅燈,
+       只有換手機那天才發現東西沒了。而這次是**寫在註解裡騙了自己**,不是漏做。
+     ⇒ 修法不是改文件,是給步數自己一份可攜格式(足跡面板的「📤 匯出/📥 匯入」,
+       pedometer.js 的 exportText/importText,每天取大值不相加)。
+       刻意**不塞進羊圈格式**:那份是跨站共用的,而且它的隱私註解明確寫著
+       「不寫地點、不寫經緯度,免得日後順手補上」—— 往裡面加欄位就是在鬆動那條。 */
 let ped = null;
 function paintSteps(st) {
   const chip = $('stepChip');
@@ -1710,12 +1752,64 @@ function paintSteps(st) {
 `
     + '⚠ 網頁拿不到手機系統的計步器,是用動作感測自己數的,會比系統計步器少;鎖屏或切到背景時不會計。';
 }
+/* 🏆 步數里程碑(0827 使用者拍板「步數換獎勵」,形狀由 AI 決定 —— 見 pedometer.js 的註解)。
+   ★ 收割既有的慶祝引擎(彩帶+金句+蓋章),不新建第二套。
+   ★ 蓋章記在 save.stepMiles(跟羊數台階分開),而且**蓋在慶祝畫面裡**不是在這裡 ——
+     在這裡蓋的話,使用者剛好在別的面板上時台階會被標成慶祝過、而他一次都沒看到。 */
+save.stepMiles = save.stepMiles || {};
+function checkStepMilestone(st) {
+  if (!window.Pedometer) return;
+  const m = Pedometer.milestoneDue(st.total, save.stepMiles);
+  if (!m) return;
+  showMilestone({ ...m, title: `🏆 ${m.n.toLocaleString()} 步了!` }, save.stepMiles);
+}
+
+/* 🗓 足跡面板:格子熱圖 + 本月/近3月/近12月 + 連續天數 + 月報分享卡。
+   ★ 每日桶的格式與 skill reading-footprint 同構 ⇒ 那邊的畫法直接收割。
+   ⚠ 熱圖用**分位數**分級不是固定門檻:每個人的步數級距差十倍,固定門檻會讓走得少的人
+     整張圖全白、走得多的人整張圖全滿 —— 兩種都等於沒資訊(判準寫在 pedometer.js)。 */
+const HEAT = ['#1b3a2e', '#2f6b4a', '#48956a', '#6cc189', '#a7ecb6'];
+function drawFootprint() {
+  if (!ped || !window.Pedometer) return;
+  const st = ped.stats();
+  const hm = Pedometer.heatmap(ped._state(), 182);
+  const cv = $('stepHeat');
+  const CELL = 12, GAP = 3, PAD = 4;
+  cv.width = hm.weeks.length * (CELL + GAP) + PAD * 2;
+  cv.height = 7 * (CELL + GAP) + PAD * 2;
+  cv.style.width = '100%';
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, cv.width, cv.height);
+  hm.weeks.forEach((week, w) => week.forEach((c, d) => {
+    if (!c) return;
+    g.fillStyle = HEAT[c.level];
+    g.fillRect(PAD + w * (CELL + GAP), PAD + d * (CELL + GAP), CELL, CELL);
+  }));
+  const nx = Pedometer.nextMilestone(st.total);
+  $('stepStats').innerHTML =
+    `今天 <b>${st.today.toLocaleString()}</b> 步・近 7 天 <b>${st.week.toLocaleString()}</b>`
+    + `<br>本月 <b>${Pedometer.rangeTotal(ped._state(), 1).toLocaleString()}</b>`
+    + `・近 3 月 <b>${Pedometer.rangeTotal(ped._state(), 3).toLocaleString()}</b>`
+    + `・近 12 月 <b>${Pedometer.rangeTotal(ped._state(), 12).toLocaleString()}</b>`
+    + `<br>累計 <b>${st.total.toLocaleString()}</b> 步・連續 <b>${st.streak}</b> 天`
+    + (nx ? `<br>🏆 還差 <b>${nx.remain.toLocaleString()}</b> 步解鎖下一段金句(${nx.m.ref})` : '<br>🎊 六段金句全部解鎖了!')
+    + (st.mode === 'gps' ? '<br><span class="hint">目前用 GPS 位移估算(拿不到動作感測)</span>' : '');
+}
+let _cardBlob = null;
+async function makeStepCard() {
+  if (!ped || !window.Pedometer) return;
+  const cv = $('stepCardCv');
+  Pedometer.drawMonthCard(cv, { state: ped._state(), title: '🚶 尋羊記・走路足跡' });
+  _cardBlob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  $('stepCardWrap').style.display = 'block';
+}
+
 function initPedometer() {
   if (ped || typeof Pedometer === 'undefined') return;
   ped = Pedometer.create({
     load: () => save.steps || null,
     save: (st) => { save.steps = st; persist(); },
-    onChange: paintSteps,
+    onChange: (st) => { paintSteps(st); checkStepMilestone(st); },
   });
   paintSteps(ped.stats());
 }
@@ -2499,10 +2593,15 @@ const CONFETTI = {
    ★ **蓋章在這裡記,不在 caught() 記**:記在 caught() 的話,使用者若在明信片畫面
      直接把 App 關掉,台階就被標成慶祝過了,而他一次都沒看到 = 靜靜吃掉一個台階。 */
 let _afterMile = null;
-function showMilestone(m) {
-  save.miles[m.n] = Date.now(); persist();
+/* 🏆 慶祝畫面。0827 一般化成「吃一個台階物件」,讓**步數台階**共用同一套彩帶+金句+蓋章:
+     · m.title 可帶入(羊數台階不帶 → 沿用「N 隻了!」)
+     · bucket 可帶入(步數用 save.stepMiles,**刻意跟 save.miles 分開**——
+       兩個軌各自從小數字長到大數字,共用一個桶哪天撞號就會靜靜吃掉一個台階)。 */
+function showMilestone(m, bucket) {
+  const b = bucket || (save.miles = save.miles || {});
+  b[m.n] = Date.now(); persist();
   $('mileEm').textContent = m.em;
-  $('mileTitle').textContent = `🏆 ${m.n} 隻了!`;
+  $('mileTitle').textContent = m.title || `🏆 ${m.n} 隻了!`;
   $('mileWord').textContent = m.word;
   $('mileVerse').textContent = m.verse;
   $('milePanel').classList.add('on');
@@ -3085,6 +3184,56 @@ $('stepBtn').onclick = () => {
 };
 // 開場先把上次存的步數畫出來(不啟動感測、不要授權——那要等使用者按鈕)
 initPedometer();
+
+/* 🗓 足跡面板:點步數膠囊打開 */
+$('stepChip').onclick = () => { initPedometer(); drawFootprint(); $('stepPanel').classList.add('on'); };
+$('stepBack').onclick = () => { $('stepPanel').classList.remove('on'); };
+$('stepCardBtn').onclick = () => makeStepCard();
+$('stepIoBtn').onclick = () => {
+  initPedometer();
+  $('stepIoText').value = Pedometer.exportText(ped._state());
+  $('stepIoBox').style.display = 'block';
+};
+$('stepIoCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('stepIoText').value); toast('📋 複製好了', 2000); }
+  catch (e) { $('stepIoText').select(); toast('這台裝置不能自動複製,請手動選取', 3000); }
+};
+/* ⚠ 訊息一律講「發生了什麼」:匯入 0 天與檔案壞掉是**兩件事**,
+   都印「完成」就是無聲失敗(importText 刻意用 -1 區分,這裡要用到)。 */
+$('stepIoIn').onclick = () => {
+  initPedometer();
+  const n = Pedometer.importText(ped._state(), $('stepIoText').value);
+  if (n < 0) { toast('這段文字看不懂——請確認整段都複製到了', 3600); return; }
+  save.steps = ped._state(); persist();
+  drawFootprint(); paintSteps(ped.stats());
+  toast(n === 0 ? '這份足跡本來就都有了,沒有新的一天' : `📥 合併了 ${n} 天的足跡`, 3200);
+};
+$('stepCardSave').onclick = () => {
+  if (!_cardBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(_cardBlob);
+  a.download = `尋羊記-走路足跡-${Pedometer.todayKey(Date.now())}.png`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('⬇ 月報卡下載好了', 2400);
+};
+$('stepCardShare').onclick = async () => {
+  if (!_cardBlob) return;
+  const f = new File([_cardBlob], `尋羊記-走路足跡.png`, { type: 'image/png' });
+  /* ⚠ 一定要先問 canShare({files})(同明信片那條):桌機 Chrome 有 navigator.share
+     卻**不能傳檔**,直接 share 會丟錯,使用者只看到「按了沒反應」。不能傳就退成下載。 */
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    try { await navigator.share({ files: [f], title: '尋羊記・走路足跡' }); } catch (e) { /* 使用者取消 */ }
+  } else { $('stepCardSave').click(); toast('這台裝置不能直接分享圖片,已改成下載', 3200); }
+};
+/* 🔬 驗收把手(同 __sqmile / __sqmap 慣例):要能從外面把台階與熱圖叫出來驗。 */
+try {
+  window.__sqstep = {
+    ped: () => ped, stats: () => ped && ped.stats(),
+    milestones: () => Pedometer.STEP_MILESTONES,
+    due: (total) => Pedometer.milestoneDue(total, save.stepMiles),
+    openPanel: () => { initPedometer(); drawFootprint(); $('stepPanel').classList.add('on'); },
+  };
+} catch (e) {}
 /* 🔓 音訊解鎖:瀏覽器規定要在**使用者手勢**裡建 AudioContext。
    掛在 document 的 pointerdown(capture、once)⇒ 孩子按下的第一顆鈕就解開,之後都能發聲。 */
 document.addEventListener('pointerdown', () => SFX.unlock(), { capture: true, once: true });

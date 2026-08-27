@@ -115,6 +115,60 @@ const browser = await chromium.launch()
   const after = await page.evaluate(() => Number(document.getElementById("stepToday").textContent || 0))
   ok(`④ 重新載入後步數還在(${after} 步)`, after >= 80, `after=${after}`)
 
+  console.log("⑦ 步數里程碑:走到台階要出慶祝畫面(彩帶+金句+蓋章)")
+  /* ★ 驗**畫面上真的出現那段金句** —— 只讀資料證明不了它畫得出來(同 __sqmile 的註解)。 */
+  const mile = await page.evaluate(() => {
+    const st = window.__sqstep
+    st.ped()._state().days[window.Pedometer.todayKey(Date.now())] = 1200   // 跨過 1000 台階
+    const due = st.due(1200)
+    return due ? { n: due.n, ref: due.ref } : null
+  })
+  ok(`1200 步該給 1000 台階(${mile && mile.ref})`, mile && mile.n === 1000, JSON.stringify(mile))
+
+  const shown = await page.evaluate(() => {
+    const m = window.Pedometer.STEP_MILESTONES[0]
+    window.__sqmile.show({ ...m, title: `🏆 ${m.n} 步了!` }, {})
+    return {
+      on: document.querySelector("#milePanel").classList.contains("on"),
+      title: document.querySelector("#mileTitle").textContent,
+      verse: document.querySelector("#mileVerse").textContent,
+    }
+  })
+  ok("慶祝畫面打開了", shown.on)
+  ok(`標題用步數不是「隻」(${shown.title})`, /步了/.test(shown.title) && !/隻/.test(shown.title), shown.title)
+  ok("畫面上有那段金句(cuv 查驗過的)", shown.verse.includes("引導我走義路"), shown.verse.slice(0, 40))
+
+  console.log("⑧ 足跡面板:熱圖畫得出來 + 統計 + 月報卡")
+  await page.evaluate(() => document.querySelector("#mileBack").click())
+  await sleep(200)
+  await page.evaluate(() => window.__sqstep.openPanel())
+  await sleep(300)
+  ok("足跡面板打開", await page.locator("#stepPanel").evaluate((el) => el.classList.contains("on")))
+  const heat = await page.evaluate(() => {
+    const cv = document.querySelector("#stepHeat")
+    const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data
+    let painted = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) painted++
+    return { w: cv.width, h: cv.height, painted, stats: document.querySelector("#stepStats").textContent }
+  })
+  // 「畫得出來」要用像素證明,不是看 canvas 存不存在
+  ok(`熱圖有畫上像素(${heat.painted} 個不透明點)`, heat.painted > 100, JSON.stringify({ w: heat.w, h: heat.h, p: heat.painted }))
+  ok("統計有本月/近3月/近12月/連續", /本月/.test(heat.stats) && /近 3 月/.test(heat.stats) && /連續/.test(heat.stats), heat.stats.slice(0, 60))
+  ok("有講「還差 N 步解鎖下一段金句」", /還差/.test(heat.stats) || /全部解鎖/.test(heat.stats), heat.stats.slice(0, 80))
+
+  await page.locator("#stepCardBtn").click()
+  await sleep(600)
+  const card = await page.evaluate(() => {
+    const cv = document.querySelector("#stepCardCv")
+    const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data
+    let painted = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) painted++
+    return { w: cv.width, h: cv.height, painted, visible: document.querySelector("#stepCardWrap").style.display }
+  })
+  // ⚠ 高度不寫死:排版調過一次(1400→1010),寫死的話下次調版面這條會假紅
+  ok(`月報卡畫出來了(${card.w}x${card.h})`, card.w === 900 && card.h > 800 && card.painted > 10000, JSON.stringify(card))
+  ok("月報卡區塊顯示出來", card.visible === "block", card.visible)
+
   ok("⑥ 零 console error / pageerror", errors.length === 0, errors.slice(0, 3).join(" | "))
   await ctx.close()
 }
