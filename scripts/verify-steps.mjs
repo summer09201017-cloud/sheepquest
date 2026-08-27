@@ -68,13 +68,18 @@ const browser = await chromium.launch()
   ok("① pedometer.js 載進來了(window.Pedometer 不是 undefined)",
     await page.evaluate(() => typeof window.Pedometer === "object" && window.Pedometer !== null))
 
-  ok("① 畫面上有「🚶 計步」鈕", await page.locator("#stepBtn").count() === 1)
+  /* 🚶 0827 訂正:原本是「膠囊 + 計步鈕」兩個元件,把 .top 那排擠爆(羊圈被推出畫面)。
+     現在合併成**一顆 #stepChip**,而且移到第二排 #row2:
+       還沒開始 → 顯示「🚶 計步」,按了才要授權;已在計步 → 顯示「🚶 N 步」,按了開足跡。 */
+  ok("① 畫面上有 🚶 計步膠囊(在第二排,不在已經擠滿的 .top)",
+    await page.locator("#row2 #stepChip").count() === 1)
+  ok("① 未開始時顯示「計步」不是步數", /計步/.test(await page.locator("#stepChip").textContent()))
 
   // 按真的按鈕(不是 evaluate 戳函式 —— evaluate-not-click-guard #29)
-  await page.locator("#stepBtn").click()
+  await page.locator("#stepChip").click()
   await sleep(300)
 
-  ok("② 按下後步數膠囊出現", await page.locator("#stepChip").isVisible())
+  ok("② 按下後膠囊還在(改顯示步數)", await page.locator("#stepChip").isVisible())
 
   /* 合成走路:每分鐘 110 步、峰值 3 m/s^2,50Hz 取樣,送 100 步份量。
      ⚠ 事件要在**頁面裡**用真的 DeviceMotionEvent 派發,才會走到 addEventListener 那條路。 */
@@ -95,7 +100,7 @@ const browser = await chromium.launch()
       ev.accelerationIncludingGravity = { x: 0, y: 0, z: mag }
       window.dispatchEvent(ev)
     }
-    return Number(document.getElementById("stepToday").textContent)
+    return Number((document.getElementById("stepChip").textContent.match(/[0-9]+/) || [0])[0])
   })
   ok(`② 合成 100 步 → 畫面顯示 ${counted} 步(容許 80~120)`, counted >= 80 && counted <= 120, `got=${counted}`)
 
@@ -112,8 +117,13 @@ const browser = await chromium.launch()
   // ④ 重新載入還在
   await page.reload({ waitUntil: "load" })
   await sleep(800)
-  const after = await page.evaluate(() => Number(document.getElementById("stepToday").textContent || 0))
-  ok(`④ 重新載入後步數還在(${after} 步)`, after >= 80, `after=${after}`)
+  const after = await page.evaluate(() => Number((document.getElementById("stepChip").textContent.match(/[0-9]+/) || [0])[0]))
+  /* ★ 重新載入後計步一定是停的(iOS 授權只認手勢,不能自動啟動)——
+     但**步數不可以因此看不見**:走了幾百步回來只看到「計步」兩個字,會以為資料掉了。
+     ⇒ 驗「數字還在」+「有 ⏸ 誠實標示現在沒在計」。 */
+  const chipText = await page.evaluate(() => document.getElementById("stepChip").textContent)
+  ok(`④ 重新載入後步數還看得見(${after} 步)`, after >= 80, `after=${after} text=${chipText}`)
+  ok(`④ 且標示了目前沒在計(⏸)`, /⏸/.test(chipText), chipText)
 
   console.log("⑦ 步數里程碑:走到台階要出慶祝畫面(彩帶+金句+蓋章)")
   /* ★ 驗**畫面上真的出現那段金句** —— 只讀資料證明不了它畫得出來(同 __sqmile 的註解)。 */
