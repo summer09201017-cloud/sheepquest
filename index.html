@@ -204,6 +204,9 @@
 <!-- 🏞 v14 地點膠囊:顯示當場反查出來的地名(像皮克敏那顆「淡江大橋 ›」)。
      ★ 地名是**執行時查來的**,不寫死在原始碼裡 —— 公開 repo 不會帶著任何人的所在地。
      ★ 放在 .top **外面**、自己一排置中:塞進那一排會把按鈕的字擠成直排(截圖驗收抓到的)。 -->
+<!-- 📷 地標拍照:用 file+capture 而不是 getUserMedia —— LINE/FB 的內建瀏覽器會擋後者,
+     而教會的連結都走 LINE 發(見 skill in-app-browser-guard)。 -->
+<input type="file" id="shotInput" accept="image/*" capture="environment" style="display:none">
 <div id="row2">
   <!-- 🚶 一顆搞定:還沒開始=「計步」(按了要授權,iOS 只認使用者手勢);已在計步=「N 步」(按了開足跡) -->
   <button class="chip" id="stepChip" title="開始計步(像皮克敏一樣記錄走了幾步)。⚠ 網頁拿不到手機系統的計步器,是用動作感測自己數的,會比系統計步器少;鎖屏或切到背景時不會計">🚶 計步</button>
@@ -401,6 +404,15 @@
 
   <!-- 🐑 羊14(0826):跟隨小隊。選誰在地圖上跟著你走(上限 5 隻)。
        ★ 這一區只有「誰出來」,沒有任何會影響玩法的旋鈕——它是裝飾層。 -->
+  <!-- 🧭 探險(0827,參考皮克敏那一區)。放在羊圈裡,和明信片匣同一個地方,不新開入口。
+       ⚠ 這一區**完全不碰獅子與熊的戰鬥** —— 使用者 0827 明講那個版本要保留。 -->
+  <div id="tripBox" style="margin-top:18px;border-top:1px solid rgba(0,0,0,.12);padding-top:14px">
+    <h2 style="font-size:17px;margin:0 0 6px">🧭 探險</h2>
+    <div class="hint" id="tripStatus"></div>
+    <div id="tripPick" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"></div>
+    <div id="tripCards" style="margin-top:10px"></div>
+  </div>
+
   <div id="escortBox" style="margin-top:18px;border-top:1px solid rgba(0,0,0,.12);padding-top:14px">
     <h2 style="font-size:17px;margin:0 0 6px">🐑 跟著我走的小隊</h2>
     <div class="hint" id="escortStat"></div>
@@ -477,6 +489,17 @@
 
 <!-- 🏆 羊1(0826):里程碑慶祝。彩帶 + 金句(曉臻唸) + 紀念章。
      ★ 一定要有「繼續找」的出口鈕:自動關掉的慶祝畫面會把還沒讀完經文的孩子打斷。 -->
+<!-- 🏞📷 地標面板(0827):講戰鬥背景 + 在這裡拍一張照片。點上面的地名膠囊打開。 -->
+<section class="panel" id="placePanel">
+  <h1 id="placeTitle">🏞 這一帶</h1>
+  <div id="placeBody" style="font-size:15px;line-height:1.9;margin:10px auto;max-width:min(560px,92vw);text-align:left"></div>
+  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn primary" id="placeBack">← 回去找羊</button>
+    <button class="btn" id="placeShot">📷 拍這裡</button>
+    <button class="btn" id="placeShotDel" style="display:none">🗑 刪掉這張</button>
+  </div>
+</section>
+
 <!-- 🗓 足跡面板(0827):格子熱圖 + 統計 + 月報分享卡。點上排的步數膠囊打開 -->
 <section class="panel" id="stepPanel">
   <h1>🚶 走路足跡</h1>
@@ -967,6 +990,128 @@ const TTS = {
    ★ 判定順序:手動指定 > 裝置端快取 > 線上查(可關) > 預設草地。查不到永遠不卡住遊戲。 */
 const SCENE_NAME = { grass: '草地', bridge: '大橋', school: '校園', station: '捷運站',
                      park: '公園河邊', street: '街道', tamkang: '淡江大橋 ★', george: '喬治高職 ★' };
+/* ══════════════════════════════════════════════════════════════════════════════
+   📷 地標照片(0827,參考皮克敏東莒那張截圖的「真實地標照片」)
+   ══════════════════════════════════════════════════════════════════════════════
+   ⚠⚠ **只存在這支手機。不上傳、不共享、不進羊圈匯出、不進短碼。**
+     皮克敏的地標照片是上傳到雲端共享的;這一站不能照抄,因為開場的隱私承諾寫著
+     「位置不上傳、羊圈不寫經緯度」,而且**這是給教會孩子用的 App**。
+     要改成共享是**使用者的決定**(還要處理審核),不是順手加上去的。
+   ★ 接法:拍到的照片會變成**那個地標在 3D 戰鬥裡的背景**(接既有的 photoMesh 系統,
+     優先序在內建 photos/*.jpg 之前)——「你們那裡」本來就該是你們拍的。
+   ⚠ 用 <input type="file" accept="image/*" capture> 而不是 getUserMedia:
+     LINE / FB 的內建瀏覽器會擋 getUserMedia,而 file+capture 在那裡多半還能叫出相機
+     (見 skill in-app-browser-guard)。教會的連結都走 LINE 發,這個差別很實際。
+   ⚠ 存**縮圖**不是原圖:一張手機照片好幾 MB,localStorage 只有 ~5MB,
+     直接存會把整個存檔寫爆(而且 setItem 是丟例外不是靜默失敗)。 */
+/* ══════════════════════════════════════════════════════════════════════════════
+   🧭 探險(0827,參考皮克敏東莒截圖的「探險」那一區)
+   ══════════════════════════════════════════════════════════════════════════════
+   ⚠⚠ **完全不碰獅子與熊的戰鬥**(0827 使用者明講「原本跟獅子與熊戰鬥的版本也要保留」)。
+     探險是**額外**能做的事:派羊出門、你走路、牠回來帶一張探險卡。
+     刪掉整段,抓羊、打獸、羊圈、明信片每一條規則都不變 —— 這是它可以放心做的前提。
+   ★ 燃料是**步數**,不是真實時間:
+     皮克敏的探險吃真實時間(掛著等),但這一站的整個主題就是走路(路15:4「去找那失去的羊」)
+     ⇒ 用步數當燃料才和主題同一條線,而且不會變成「開著 App 放著就好」。
+   ★ 派出去的羊**照樣跟著你走、照樣長大** —— 探險不是把羊鎖起來。
+     (鎖起來的話使用者就不會派,因為那等於放棄跟隨與成長。)
+   ⚠ 回來給的是**探險卡**(地標名 + 一段已 cuv 查驗的經文 + 你拍的照片,如果有)——
+     **不生新羊、不給戰鬥能力**:生羊會弄壞「走到那裡才找得到」,給能力會弄壞戰鬥平衡。 */
+const TRIP_COST = 2000;                    // 一趟探險要走的步數
+const TRIP_KEY_MAX = 20;                   // 探險卡最多留 20 張
+/* 探險卡上的經文。★ 全部 cuv 逐字查驗過,並照本站慣例把全形標點正規化成半形。
+   ⚠ 卡片會被截圖傳到 LINE 群組 ⇒ 只用查驗過的,絕不現場拼一句。 */
+const TRIP_VERSES = [
+  { ref: '詩 121:8', text: '「你出你入,耶和華要保護你,從今時直到永遠。」——詩篇 121:8' },
+  /* ⚠ 這兩句我第一版打成「往**哪**裡去」——和合本是「往**那**裡去」;
+     書 1:9 還漏了「耶和華**─**你的神」中間那個破折號。
+     ⇒ cuv 查驗抓到的。經文一個字都不能憑印象打(卡片會被傳到 LINE 群組)。 */
+  { ref: '創 28:15', text: '「我也與你同在。你無論往那裡去,我必保佑你。」——創世記 28:15' },
+  { ref: '書 1:9',   text: '「你無論往那裡去,耶和華─你的神必與你同在。」——約書亞記 1:9' },
+  { ref: '詩 23:2',  text: '「他使我躺臥在青草地上,領我在可安歇的水邊。」——詩篇 23:2' },
+];
+const tripState = () => (save.trip = save.trip || { going: null, cards: [] });
+/* 派出去:記下目的地、隨行的羊、出發時的步數。**不鎖羊、不動任何既有狀態。** */
+function tripStart(kind) {
+  const t = tripState();
+  if (t.going) { toast('已經有一隊在探險了——先讓牠們回來', 3200); return false; }
+  const ids = escortIds();
+  if (!ids.length) { toast('要先有羊跟著你,才派得出去', 3200); return false; }
+  const st = (ped && ped.stats()) || { total: 0 };
+  t.going = { kind, ids: ids.slice(), from: st.total, at: Date.now() };
+  persist();
+  toast(`🧭 出發!帶著牠們走 ${TRIP_COST.toLocaleString()} 步就到「${SCENE_NAME[kind] || kind}」了。`, 4600);
+  return true;
+}
+const tripWalked = () => {
+  const t = tripState();
+  if (!t.going) return 0;
+  const st = (ped && ped.stats()) || { total: 0 };
+  return Math.max(0, st.total - t.going.from);
+};
+/* 走夠了就回來。★ 由計步的 onChange 呼叫;**只在真的走夠時才發卡**。 */
+function tripCheck() {
+  const t = tripState();
+  if (!t.going || tripWalked() < TRIP_COST) return;
+  const g = t.going;
+  t.going = null;
+  const v = TRIP_VERSES[(t.cards.length + g.ids.length) % TRIP_VERSES.length];
+  t.cards.unshift({
+    kind: g.kind, place: SCENE_NAME[g.kind] || g.kind,
+    ids: g.ids, ref: v.ref, verse: v.text, at: Date.now(),
+  });
+  t.cards = t.cards.slice(0, TRIP_KEY_MAX);
+  persist();
+  toast(`🧭 探險隊回來了!帶回一張「${SCENE_NAME[g.kind] || g.kind}」的探險卡。`, 5000);
+  try { CONFETTI.go({ duration: 1800 }); } catch (e) {}
+}
+
+const SHOT_KEY = 'sheepquest-shots-v1';       // 刻意獨立一個鍵:它是圖片、體積跟存檔差一個量級
+const SHOT_W = 640, SHOT_MAX = 12;            // 最多留 12 個地標的照片
+const SHOT = {
+  all() { try { return JSON.parse(localStorage.getItem(SHOT_KEY) || '{}') || {}; } catch (e) { return {}; } },
+  get(kind) { return this.all()[kind] || null; },
+  count() { return Object.keys(this.all()).length; },
+  save(kind, dataUrl) {
+    try {
+      const o = this.all();
+      o[kind] = dataUrl;
+      const ks = Object.keys(o);
+      // 超過上限就丟最舊的(物件的鍵順序=插入順序)
+      while (ks.length > SHOT_MAX) delete o[ks.shift()];
+      localStorage.setItem(SHOT_KEY, JSON.stringify(o));
+      return true;
+    } catch (e) {
+      /* ⚠ 存不下要**講出來**:localStorage 滿的時候 setItem 是丟例外,
+         不接就會把後面的程式一起打斷,而使用者只看到「拍了沒反應」。 */
+      toast('手機空間不夠,這張照片沒存起來(可以先刪幾張舊的地標照片)', 4600);
+      return false;
+    }
+  },
+  del(kind) { try { const o = this.all(); delete o[kind]; localStorage.setItem(SHOT_KEY, JSON.stringify(o)); } catch (e) {} },
+};
+/* 把使用者選到的檔案縮成 640 寬的 JPEG data URL。
+   ⚠ 一定要縮:原圖幾 MB,localStorage 只有 ~5MB。 */
+function shrinkPhoto(file) {
+  return new Promise((res) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const w = SHOT_W, h = Math.round((im.height / im.width) * w);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(im, 0, 0, w, h);
+        res(cv.toDataURL('image/jpeg', 0.72));
+      };
+      im.onerror = () => res(null);
+      im.src = fr.result;
+    };
+    fr.onerror = () => res(null);
+    fr.readAsDataURL(file);
+  });
+}
+
 const PLACE = {
   scene: 'grass',          // 這一場戰鬥要用的背景
   label: '',               // 查到的地名(只顯示在畫面上,不上傳、不寫進羊圈紀錄)
@@ -1484,6 +1629,57 @@ function clearChars() {
      而「就地搬移」要另外維護一份 id→mesh 的對照表,那是第二份真相。
    ★ 羊的**朝向**是「往牧人的方向」= 牠前面那一格,不是牧人現在的位置:
      用現在的位置會讓最後一隻羊在轉彎時整隻橫過來(牠其實還在上一個彎道裡)。 */
+/* ══════════════════════════════════════════════════════════════════════════════
+   🌱 走路讓羊長大 + 長配飾(0827 使用者拍板「兩個都做」)
+   ══════════════════════════════════════════════════════════════════════════════
+   由來:使用者拿皮克敏在東莒的截圖當參考 —— 皮克敏的核心黏著是「**走路讓花苗長成皮克敏**」。
+   ⚠ 但**不做「走路生出新羊」**:尋羊記的羊是**走到那個地點**才找到的(路15:4「去找那失去的羊」),
+     走路自動生羊會讓「出門去找」失去意義,也會弄壞既有的出現率平衡。
+   ⇒ 不打架的版本:**步數餵給「現在跟在你身邊的羊」**(跟隨小隊,最多 3 隻)——
+     你帶著牠走多遠,牠就長多少。這與皮克敏「帶著花苗走」是同一個心智模型。
+
+   ★★ 兩條刻意的設計限制:
+     ① **只加不減、只長不縮**:成長是往上加的倍率,起點就是牠原本的樣子。
+        羊已經被取過名、印在明信片上、進過羊圈 —— **那是使用者記得的東西**,
+        不可以因為新功能就「變成另一隻」。
+     ② **不動 genes**:體型是**算出來的倍率**,不是改寫 `genes.size`。
+        genes 是跨站羊圈格式的一部分(sheepdex),改它會讓同一隻羊在兩站長不一樣。
+   ⚠ 成長值存在**本站的 save.grow**,不進跨站羊圈格式 ⇒ **搬到 sheepflock3d 不會帶過去**。
+     這是刻意的(不動共用格式),但要誠實講:羊圈匯出/短碼**不含成長**。 */
+save.grow = save.grow || {};                 // { 羊id: 累計餵給牠的步數 }
+const GROW_FULL = 20000;                     // 餵滿這麼多步 = 長到最大(約兩週的日常步數)
+const GROW_MAX = 0.38;                       // 最多大 38%(再大就會蓋住牧人)
+/* 配飾台階:走到就永久解鎖(只加不減)。★ 這幾樣刻意都是「牧養」的東西,不是戰利品。 */
+const GROW_DECOS = [
+  { at: 3000,  k: 'wreath', em: '🌼', n: '花環', word: '牠跟你走了三千步,替牠編了個花環。' },
+  { at: 8000,  k: 'bell',   em: '🔔', n: '鈴鐺', word: '八千步了——掛上鈴鐺,走散了也聽得到牠。' },
+  { at: 15000, k: 'scarf',  em: '🧣', n: '圍巾', word: '一萬五千步。天涼了,給牠圍上圍巾。' },
+];
+const growOf = (id) => Math.max(0, Number(save.grow[id]) || 0);
+const growScale = (id) => 1 + GROW_MAX * Math.min(1, growOf(id) / GROW_FULL);
+const growDecos = (id) => GROW_DECOS.filter((d) => growOf(id) >= d.at);
+/* 餵步數給跟在身邊的羊。★ 由計步的 onChange 呼叫,傳「這次增加了幾步」。
+   ⚠ 只餵**跟隨小隊**(不是整個羊圈):帶著走才會長,這是整個機制的意思。
+   ⚠ 平分而不是每隻都給全額 —— 每隻都給的話,帶 3 隻等於三倍效率,
+     使用者會為了效率一直開最多隻,而那正是他剛剛嫌太擠的東西。 */
+function feedWalk(delta) {
+  if (!(delta > 0)) return;
+  const ids = escortIds();
+  if (!ids.length) return;
+  const each = delta / ids.length;
+  for (const id of ids) {
+    const before = growOf(id);
+    save.grow[id] = before + each;
+    for (const d of GROW_DECOS) {
+      if (before < d.at && save.grow[id] >= d.at) {
+        const f = save.flock[id];
+        toast(`${d.em} ${(f && f.name) || '這隻羊'}得到${d.n}!${d.word}`, 4600);
+      }
+    }
+  }
+  persist();
+}
+
 function syncEscort() {
   const sc = charScene(); if (!sc) return;
   if (!escortOn()) return;
@@ -1493,7 +1689,8 @@ function syncEscort() {
     const f = save.flock[ids[i]]; if (!f) continue;
     const m = B3D.newSheep(ids[i]); if (!m) break;       // 🐑 每隻長自己的樣子(id → 基因);three 沒載到就整批不畫
     const [x, z] = metersFrom(spot.lat, spot.lng);
-    m.scale.setScalar(CHAR.scale * (f.gold ? 1.05 : 0.9));   // 比野生羊小一點:牠們是隨行的,不該搶戲
+    // 🌱 0827:帶著走會長大(只加不減;起點就是牠原本的樣子)
+    m.scale.setScalar(CHAR.scale * (f.gold ? 1.05 : 0.9) * growScale(ids[i]));   // 比野生羊小一點:牠們是隨行的,不該搶戲
     m.position.set(x, 0, z);
     const ahead = i === 0 ? { lat: CHAR.oLat, lng: CHAR.oLng } : (escortSpot(i - 1) || { lat: CHAR.oLat, lng: CHAR.oLng });
     const [ax, az] = metersFrom(ahead.lat, ahead.lng);
@@ -1950,7 +2147,17 @@ function initPedometer() {
   ped = Pedometer.create({
     load: () => save.steps || null,
     save: (st) => { save.steps = st; persist(); },
-    onChange: (st) => { paintSteps(st); checkStepMilestone(st); },
+    onChange: (st) => {
+      paintSteps(st);
+      checkStepMilestone(st);
+      /* 🌱 把「這次多走的步數」餵給跟在身邊的羊。
+         ⚠ 一定要用**差額**不是總數:用總數的話每次 onChange 都把累計步數再餵一遍,
+           羊會在幾秒內直接長滿(而且不會有任何錯誤訊息)。 */
+      const prev = Number(save.stepSeen) || 0;
+      if (st.total > prev) { feedWalk(st.total - prev); save.stepSeen = st.total; persist(); }
+      else if (st.total < prev) { save.stepSeen = st.total; persist(); }   // 匯入合併後可能變小
+      tripCheck();                                    // 🧭 走夠了探險隊就回來
+    },
   });
   paintSteps(ped.stats());
 }
@@ -1998,6 +2205,12 @@ function onPos(lat, lng, acc) {
     _placeCell = cell;
     PLACE.resolve(lat, lng).then(() => {
       if (PLACE.label) toast('🏞 這一帶是「' + PLACE.label + '」——等一下就在這裡救羊', 3200);
+      /* 🧭 記住「去過哪些地標」——探險的目的地只列去過的地方(在家點一點就有的話,
+         這一站「走出去找」的意思就沒了)。★ 只記場景種類,**不記經緯度**(隱私承諾)。 */
+      if (PLACE.scene) {
+        save.seenScenes = Array.isArray(save.seenScenes) ? save.seenScenes : [];
+        if (!save.seenScenes.includes(PLACE.scene)) { save.seenScenes.push(PLACE.scene); persist(); }
+      }
       paintPlaceChip();                       // 🏞 v14:toast 會消失,膠囊要常駐
     });
   }
@@ -2015,9 +2228,76 @@ function paintPlaceChip() {
   el.textContent = '🏞 ' + PLACE.label + ' ›';
   el.style.display = 'inline-block';
 }
-$('placeChip').onclick = () => {
-  const s = PLACE.scene ? (SCENE_NAME[PLACE.scene] || PLACE.scene) : '草地';
-  toast(`🏞 「${PLACE.label}」→ 戰鬥背景用「${s}」` + (PLACE.forced ? '(你手動指定的)' : ''), 3400);
+/* 🏞📷 地名膠囊:點一下開「這個地標」的小面板 —— 講它對應哪個戰鬥背景,並且可以拍一張照片。
+   ★ 為什麼掛在地名膠囊上:那顆膠囊本來就代表「你在哪」,拍地標照片是同一件事的延伸。 */
+$('placeChip').onclick = () => openPlacePanel();
+
+function placeKind() { return PLACE.scene || PLACE.forced || null; }
+function openPlacePanel() {
+  const kind = placeKind();
+  const sname = kind ? (SCENE_NAME[kind] || kind) : '草地';
+  const mine = kind ? SHOT.get(kind) : null;
+  $('placeTitle').textContent = `🏞 ${PLACE.label || '這一帶'}`;
+  $('placeBody').innerHTML =
+    `戰鬥背景會用「<b>${sname}</b>」${PLACE.forced ? '(你手動指定的)' : ''}。`
+    + `<br><br>📷 <b>拍一張這裡的照片</b>,它就會變成你在這個地標打獸時的背景。`
+    + `<br><span class="hint">⚠ 照片<b>只存在這支手機</b>——不上傳、不共享、不進羊圈匯出。`
+    + `(皮克敏的地標照片是上傳雲端共享的;這一站沒有那樣做,因為開場的隱私承諾寫著「位置不上傳」。)</span>`
+    + (mine ? `<br><br><img src="${mine}" style="width:100%;border-radius:12px">` : '');
+  $('placeShotDel').style.display = mine ? 'inline-block' : 'none';
+  $('placePanel').classList.add('on');
+}
+$('placeBack').onclick = () => $('placePanel').classList.remove('on');
+
+/* 🔬 成長 / 照片 的驗收把手(同 __sqmap / __sqstep 慣例)。
+   ★ 一律回**遊戲自己那一份**函式,量尺不可以自己複製一份規則。 */
+try {
+  window.__sqgrow = {
+    seedFlock: (ids) => { for (const id of ids) save.flock[id] = save.flock[id] || { name: id, ts: Date.now() }; save.escort = ids.slice(0, ESCORT_MAX); persist(); },
+    reset: () => { save.grow = {}; save.stepSeen = 0; persist(); },
+    set: (id, v) => { save.grow[id] = v; persist(); },
+    total: () => Object.values(save.grow).reduce((a, b) => a + b, 0),
+    each: () => escortIds().map((id) => growOf(id)),
+    scaleOf: (id) => growScale(id),
+    decosOf: (id) => growDecos(id),
+    pump: () => { const st = ped && ped.stats(); if (!st) return; const prev = Number(save.stepSeen) || 0; if (st.total > prev) { feedWalk(st.total - prev); save.stepSeen = st.total; persist(); } },
+    shrink: (f) => shrinkPhoto(f),
+    shotSave: (k, u) => SHOT.save(k, u),
+    shotGet: (k) => SHOT.get(k),
+    GROW_FULL, GROW_MAX,
+    // 🧭 探險
+    TRIP_COST,
+    tripStart: (k) => tripStart(k),
+    tripState: () => tripState(),
+    tripWalked: () => tripWalked(),
+    tripCheck: () => tripCheck(),
+    tripVerses: () => TRIP_VERSES,
+    paintTrip: () => paintTripBox(),
+  };
+} catch (e) {}
+$('placeShot').onclick = () => {
+  if (!placeKind()) { toast('還不知道你在哪一帶——等定位好了再拍', 3000); return; }
+  $('shotInput').click();
+};
+$('placeShotDel').onclick = () => {
+  const k = placeKind(); if (!k) return;
+  SHOT.del(k);
+  toast('📷 這個地標的照片刪掉了(戰鬥背景回到原本的)', 3000);
+  openPlacePanel();
+};
+$('shotInput').onchange = async (e) => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';                      // 清掉,不然同一張再選一次不會觸發
+  if (!f) return;
+  const kind = placeKind(); if (!kind) return;
+  const url = await shrinkPhoto(f);
+  if (!url) { toast('這張照片讀不出來(換一張試試)', 3400); return; }
+  if (!SHOT.save(kind, url)) return;
+  /* ⚠ 換了照片就要讓 3D 那邊忘掉「這個場景沒照片」的記憶,
+     不然下一場戰鬥還是用積木背景(photoMiss 是為了不重複敲 404 才記的)。 */
+  try { B3D.forgetPhoto && B3D.forgetPhoto(kind); } catch (err) {}
+  toast(`📷 拍好了!下次在「${PLACE.label || '這一帶'}」打獸,背景就是你拍的這張。`, 4600);
+  openPlacePanel();
 };
 
 /* ═══ 🧭 v14 ②:指南針 ═══
@@ -3148,6 +3428,7 @@ function openFlock() {
   paintMiles();                        // 🏆 羊1:紀念章
   paintGoldCase();                     // ✨ 羊4:金毛櫥窗
   paintEscortBox();                    // 🐑 羊14:跟隨小隊
+  paintTripBox();                      // 🧭 探險(0827)
   paintDexBox();                       // 🐑 跨站互通那一區(載不到 SheepDex 就自己藏起來)
   $('flockPanel').classList.add('on');
 }
@@ -3179,14 +3460,67 @@ function paintGoldCase() {
 /* 🐑 羊14:選誰跟著走(上限 5 隻)。點格子=加入/移出。
    ★ 沒選過就是「最近抓到的 5 隻」,而且那時**不要**寫進 save.escort ——
      寫進去就凍結了,以後新抓的羊永遠擠不進來(使用者會覺得「小隊不會更新」)。 */
+/* 🧭 探險那一區。★ 目的地只列**你去過的地標**(反查到過的場景 + 拍過照的),
+   不列一整排沒去過的地方 —— 那會變成「在家裡點一點就有」,而這一站的意思是走出去。 */
+function paintTripBox() {
+  const t = tripState();
+  const el = $('tripStatus'); if (!el) return;
+  const seen = new Set(Object.keys(SHOT.all()));
+  if (PLACE.scene) seen.add(PLACE.scene);
+  for (const k of (save.seenScenes || [])) seen.add(k);
+  const list = [...seen].filter((k) => SCENE_NAME[k]);
+  if (t.going) {
+    const w = Math.round(tripWalked());
+    el.innerHTML = '🧭 探險隊在前往「<b>' + (SCENE_NAME[t.going.kind] || t.going.kind) + '</b>」的路上:'
+      + '<b>' + w.toLocaleString() + '</b> / ' + TRIP_COST.toLocaleString() + ' 步'
+      + '<br>帶著牠們走就會前進——牠們照樣跟著你、照樣長大,探險不會把羊鎖起來。';
+    $('tripPick').innerHTML = '';
+  } else {
+    el.innerHTML = list.length
+      ? '派跟著你的羊去一個<b>你去過的地方</b>探險,走 <b>' + TRIP_COST.toLocaleString() + '</b> 步就回來,'
+        + '帶回一張探險卡(地標 + 一段金句 + 你拍的照片)。'
+        + '<br>⚠ 探險<b>不會生出新羊、也不影響打獸</b> —— 羊還是要走到那裡才找得到。'
+      : '還沒去過任何地標——先走出去,反查到地名之後這裡就會出現目的地。';
+    $('tripPick').innerHTML = list.map((k) =>
+      '<button class="btn" data-trip="' + k + '" style="font-size:13px">🧭 ' + SCENE_NAME[k] + '</button>').join('');
+    for (const b of $('tripPick').querySelectorAll('[data-trip]')) {
+      b.onclick = () => { if (tripStart(b.dataset.trip)) paintTripBox(); };
+    }
+  }
+  $('tripCards').innerHTML = t.cards.length
+    ? '<div class="hint" style="font-weight:700;margin-bottom:6px">帶回來的探險卡:</div>'
+      + t.cards.slice(0, 6).map((c) => {
+          const img = SHOT.get(c.kind);
+          return '<div class="verse" style="margin:8px 0">🧭 <b>' + c.place + '</b>'
+            + '<div style="font-size:14px;margin-top:4px">' + c.verse + '</div>'
+            + (img ? '<img src="' + img + '" style="width:100%;border-radius:10px;margin-top:6px">' : '')
+            + '</div>';
+        }).join('')
+    : '';
+}
+
 function paintEscortBox() {
   const ids = escortIds(), pick = new Set(ids);
   const all = Object.keys(save.flock).sort((a, b) => (save.flock[b].ts || 0) - (save.flock[a].ts || 0));
   $('escortSw').checked = !escortOn();
-  $('escortStat').textContent = !all.length
+  /* 🌱 0827:小隊區同時講「帶著走會長大」這件事,不然使用者不會知道步數有去處。
+     ⚠ 講清楚**平分**:不講的話大家會以為帶愈多長愈快,然後又把隊伍塞爆。 */
+  const growLine = ids.length
+    ? ids.map((id) => {
+        const f = save.flock[id] || {};
+        const g = Math.round(growOf(id));
+        const pct = Math.round(Math.min(1, g / GROW_FULL) * 100);
+        const dec = growDecos(id).map((d) => d.em).join('');
+        return `${f.name || '(無名)'} ${g.toLocaleString()} 步・長大 ${pct}%${dec ? '・' + dec : ''}`;
+      }).join('<br>')
+    : '';
+  $('escortStat').innerHTML = !all.length
     ? '還沒有羊——找回第一隻,牠就會跟著你走。'
     : (escortOn()
         ? `目前 ${ids.length}/${ESCORT_MAX} 隻跟著你${save.escort ? '(你選的)' : '(最近找回的幾隻;點格子可以自己挑)'}。`
+          + `<br>🌱 <b>你走的步數會餵給牠們</b>(平分,不是每隻都給全額)——`
+          + `帶著走會慢慢長大,3000/8000/15000 步分別得到 🌼 花環、🔔 鈴鐺、🧣 圍巾。`
+          + (growLine ? `<br>${growLine}` : '')
         : '跟隨已關閉——地圖上只會有牧人。');
   /* 最多列 40 隻:羊圈可以到 100 隻,全列出來會把這一區變成第二本收藏冊(而且手機捲不完) */
   $('escortGrid').innerHTML = all.slice(0, 40).map((id) => {
@@ -3199,7 +3533,7 @@ function paintEscortBox() {
       const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.concat([id]);
       if (next.length > ESCORT_MAX) { toast(`最多 ${ESCORT_MAX} 隻——先點掉一隻再選`, 2600); return; }
       save.escort = next; persist();
-      paintEscortBox();
+      paintEscortBox(); paintTripBox();
       refreshSheep();                   // 立刻在地圖上生效(不用回地圖才看得到)
     };
   }
@@ -4486,9 +4820,19 @@ const B3D = (() => {
       /* 純 drop-in:把照片存成 photos/<場景>.jpg 就會自己接上,不用改任何程式。
          代價是「沒放照片的場景」每次都會敲一次 404 → 用 photoMiss 記住,一個場景只試一次,
          主控台不會被 404 洗版、也不會每場戰鬥多一個沒用的網路請求。*/
-      if (photoMiss.has(kind)) return false;
-      const im = await loadImg(`photos/${kind}.jpg`);        // 沒有這個檔就 null → 維持積木
-      if (!im) { photoMiss.add(kind); return false; }
+      /* 📷 0827:優先用**使用者自己在這個地標拍的照片**(存在本機,見 SHOT)。
+         ⚠ 這條要放在 photos/*.jpg 之前:使用者拍的才是「他們那裡」,
+           內建檔只是我們預先放的。
+         ⚠ 拍到的照片**只存在這支手機**,不上傳、不共享 ——
+           這是為了不動開場的隱私承諾(「位置不上傳、羊圈不寫經緯度」)。
+           要改成共享是**使用者的決定**,不是順手加上去的。 */
+      const mine = SHOT.get(kind);
+      let im = mine ? await loadImg(mine) : null;
+      if (!im) {
+        if (photoMiss.has(kind)) return false;
+        im = await loadImg(`photos/${kind}.jpg`);            // 沒有這個檔就 null → 維持積木
+        if (!im) { photoMiss.add(kind); return false; }
+      }
       /* 只取照片的**上面 72%**(天空+主體),丟掉最下面的前景/水面 ——
          理由同 fakePhotoDraw 的註解:照片幕是垂直的牆,把前景放進去會變成「立起來的水牆」。
          橫向直接鋪滿(背景幕本來就是繞著弧的,拉伸不明顯)。*/
@@ -4805,6 +5149,9 @@ const B3D = (() => {
     get on() { return ready && !failed; },
     busy() { return ready && lock > 0; },
     mount, resize,
+    /* 📷 0827:使用者拍了新照片就要忘掉「這個場景沒照片」的記憶,
+       不然下一場戰鬥還是用積木背景(photoMiss 本來是為了不重複敲 404)。 */
+    forgetPhoto(kind) { photoMiss.delete(kind); },
     photoDemo(on) { PHOTO_DEMO = !!on; },        // 📷 客廳示範用假圖的開關(見 buildPhotoBackdrop)
     /* 📮 v14:給明信片用的畫面快照(回傳 dataURL,沒 3D 就 null)。
        ⚠⚠ WebGL 的坑,本檔 probe() 的註解早就記著:renderer **沒開 preserveDrawingBuffer**,
