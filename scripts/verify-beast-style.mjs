@@ -1,3 +1,7 @@
+/* eval-click:ok —— 這支是**純渲染截圖台**:只驗畫面長相(姿勢/材質/觀眾),不驗 UI 流程,
+ * 所以刻意不點任何按鈕。「按鈕看得見、點得到」由同 repo 走真 click 的那支驗收把關。
+ * (2026-09-01:hook #29 evaluate-not-click-guard 新增這個機器讀得懂的放行標記;
+ *  在此之前它每次被編輯都會吠一次,而假警報的下場是「反正它老是跳,無視它」。) */
 /* 😾 兇猛獸驗收:兩版都要造得出來、合約沒破、四案截圖給使用者過目 */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
