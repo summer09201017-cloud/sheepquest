@@ -579,7 +579,7 @@ try { navigator.sendBeacon(BEACON); } catch (e) {}
 /* 真實停留打點(-dwell,艦隊標配):開頁到第一次離開的秒數 */
 let _t0 = Date.now(), _dwSent = false;
 const _bye = () => { if (_dwSent) return; _dwSent = true;
-  try { navigator.sendBeacon(`https://hfpc-play-stats.summer09201017.workers.dev/p?g=sheepquest-dwell&t=` + Math.round((Date.now() - _t0) / 1000)); } catch (e) {} };
+  try { navigator.sendBeacon(`https://hfpc-play-stats.summer09201017.workers.dev/api/ping?g=sheepquest-dwell&t=` + Math.round((Date.now() - _t0) / 1000)); } catch (e) {} };
 addEventListener('pagehide', _bye);
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _bye(); });
 
