@@ -220,7 +220,11 @@
 //     而 #nearBar 又蓋住其中兩顆。修法=flex-wrap + 把 nearBar 收進同一列獨佔一行。
 //     ★ 這個 repo 的頂列 0731 修過同一種病(「羊圈只剩一個羊字」),底部列一直沒修 ——
 //       因為那三顆鈕只有客廳模式才出現,而客廳模式大家都在桌機上測。
-const CACHE = 'sheepquest-v41';
+// v42(2026-11-13):👴 長輩友善一輪 + 版號合一 —— 說明 18px / 經文 19px / 按鈕 48px、頂列改兩排(字 14px、
+//                 膠囊 44px)、詳情卡距離改用 CATCH_M、刪地標照片先確認、兩處經文補「　神」。
+//                 ★ 從這版起畫面版號(index.html 的 summary 與 #verTag 第一條)= 這裡的 vN,
+//                   scripts/test-version.mjs 三處不等就紅。
+const CACHE = 'sheepquest-v42';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 🚶 計步共用檔:**一定要進 CORE**,否則離線時「有計步鈕、按了沒反應」
   //    (同上面 sheepdex.js 漏 CORE 會讓羊圈整區收起來的那個坑)
