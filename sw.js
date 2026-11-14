@@ -224,7 +224,9 @@
 //                 膠囊 44px)、詳情卡距離改用 CATCH_M、刪地標照片先確認、兩處經文補「　神」。
 //                 ★ 從這版起畫面版號(index.html 的 summary 與 #verTag 第一條)= 這裡的 vN,
 //                   scripts/test-version.mjs 三處不等就紅。
-const CACHE = 'sheepquest-v42';
+// v43(2026-11-14):↩ 退掉 11/13 的按鈕放大與兩排頂列(使用者 2026-11-14 指示)—— 頂列回一排、按鈕/膠囊回原尺寸、
+//                 視角鈕回 150px 直排;字只留經文 19px 與開場畫面說明 18px,其他放大的字退回改前。
+const CACHE = 'sheepquest-v43';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sheepdex.js',
   // 🚶 計步共用檔:**一定要進 CORE**,否則離線時「有計步鈕、按了沒反應」
   //    (同上面 sheepdex.js 漏 CORE 會讓羊圈整區收起來的那個坑)

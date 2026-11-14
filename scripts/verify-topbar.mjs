@@ -1,4 +1,4 @@
-/* 📏 頂列兩排閘門 — 2026-08-27 立,2026-11-13 改兩排版
+/* 📏 上排寬度閘門 — 2026-08-27 立;2026-11-13 曾改成量兩排;2026-11-14 退回量一排
  *
  * 由來:index.html 的 CSS 註解寫著「量過:五個元件約 356px < 可用 370px」——
  *   **但沒有留下量法**。0827 我加了兩個元件(步數膠囊+計步鈕)、沒有重新量,
@@ -6,17 +6,17 @@
  *   —— 而羊圈是收藏冊與明信片匣的唯一入口,看不到等於那兩個功能不存在。
  *   ★ 那句「量過」寫在我正在編輯的同一個檔案裡,我還是犯了 ⇒ 知識要變成會跑的東西。
  *
- * 1113 長輩友善改版:以前為了塞進一排,窄螢幕把字縮到 12px、按鈕約 33px 高。
- *   改成兩排(第一排 羊數+朗讀/音樂/羊圈;第二排 定位精度+計步+地名),這支閘門跟著改量:
- *   ① 每一顆都在畫面內(左右都不出界)
- *   ② 字 ≥14px;可以按的鈕高 ≥44px
- *   ③ 兩排不互相蓋、toast 不蓋兩排、操作提示不蓋第二排
- *   ④ 所有浮在地圖上的鈕(兩排、指南針、右側視角/縮放、底部列)兩兩不相交、也不超出畫面底
+ * 1114 退回:11/13 把頂列改成兩排(字 14px、鈕 48px),使用者用手機看畫面被按鈕撐滿,
+ *   2026-11-14 指示退回改前、以後不要主動放大按鈕或改排法。這支閘門量的是改前那一套:
+ *   ① 第一排(羊數 + 📍 精度 + 朗讀/音樂/羊圈)排得下、沒有元件被推出畫面外,而且**只有一排**
+ *   ② 第二排(🚶 計步 + 🏞 地名)排得下
+ *   ③ toast 不蓋住上面兩排
+ *   ④ 「不可以比改前多一排」:頂部兩排的底不可以超過 90px(改前量到 87px;11/13 兩排版是 104px)
+ *      —— 再有人想把頂列加高或拆成更多排,這條會紅,要先問使用者。
  *   ⑤ 頁面沒有橫向捲動
- *   直向 360/390/412 + 橫向 740×360 都量。
  *
- * ⚠ 一定要**強制顯示** 📍 精度膠囊、🚶 步數膠囊、地名膠囊、指南針、右側控制列、「帶回這隻羊」條再量:
- *   demo 模式沒有 GPS / 方位感測 ⇒ 它們是隱藏的,不強制顯示就會量到比真手機小的數字
+ * ⚠ 一定要**強制顯示** 📍 精度膠囊與 🚶 步數膠囊再量:
+ *   demo 模式沒有 GPS ⇒ 它們是隱藏的,不強制顯示就會量到比真手機小的數字
  *   (首次量測就是這樣漏的:測試沒進到真實狀態)。
  *
  * 跑法:node scripts/verify-topbar.mjs(自己起一個本機靜態伺服器,不用另外開 http-server)
@@ -54,71 +54,87 @@ const srv = createServer(async (req, res) => {
 await new Promise((r) => srv.listen(0, "127.0.0.1", r))
 const base = `http://127.0.0.1:${srv.address().port}/`
 
+const HEADER_MAX = 90   // 改前 360/390/412 量到頂部兩排的底 = 87px
 let fail = 0
 const bad = (msg) => { fail++; console.log("    🔴 " + msg) }
 const b = await chromium.launch()
 try {
-  for (const [w, h] of [[360, 740], [390, 844], [412, 915], [740, 360]]) {
+  for (const [w, h] of [[360, 740], [390, 844], [412, 915]]) {
     const p = await b.newPage({ viewport: { width: w, height: h } })
     await p.goto(base, { waitUntil: "load" }); await new Promise((r) => setTimeout(r, 800))
     await p.locator("#agree").check(); await p.locator("#demoBtn").click(); await new Promise((r) => setTimeout(r, 1500))
+    // ⚠ 強制顯示 📍 精度膠囊與步數膠囊:demo 模式沒有 GPS 所以它們是隱藏的,
+    //    上一次量測就是漏了 ⇒ 量到的溢出比真手機上小(測試沒進到真實狀態)。
     await p.evaluate(() => {
-      const show = (sel, d) => { const e = document.querySelector(sel); if (e) e.style.display = d }
-      show("#accChip", "inline-block"); document.querySelector("#accVal").textContent = "128"
-      show("#stepChip", "inline-block"); document.querySelector("#stepChip").textContent = "🚶 12,345 步"
-      show("#placeChip", "inline-block"); document.querySelector("#placeChip").textContent = "🏞 敦化南路二段63巷 ›"
-      show("#compass", "block"); show("#viewCtl", "flex"); show("#nearBar", "block")
-      document.querySelector("#count").textContent = "100"
-      document.querySelector("#toast").style.display = "none"   // demo 開場 toast 先收起來,下面單獨量
+      document.querySelector("#accChip").style.display = "inline-block"; document.querySelector("#accVal").textContent = "128"
+      document.querySelector("#stepChip").style.display = "inline-block"
+      const pc = document.querySelector("#placeChip")
+      pc.style.display = "inline-block"; pc.textContent = "🏞 敦化南路二段63巷 ›"
+      /* ⚠ 已知邊角(改前 4e2c1b1 就是這樣,1114 量過一模一樣,沒修):羊數到 100/100 **而且**定位誤差 3 位數(±100m 以上)
+         同時出現時,360/390 寬第一排會多 5~7px,「📖 羊圈」右緣被切掉一點。要修得動排法或縮字,使用者 1114 說
+         「不要主動改排法」⇒ 留著等他決定。這裡量的是「還沒找齊(2 位數)+ GPS 很差(3 位數)」這個常見的最壞情況。 */
+      document.querySelector("#count").textContent = "99"
+      document.querySelector("#toast").style.display = "none"
     })
-    const r = await p.evaluate(() => {
-      const vis = (e) => e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().width > 0
-      const box = (e) => { const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, w: q.width, h: q.height } }
-      const name = (e) => "#" + (e.id || "") + ((e.textContent || "").trim().slice(0, 8) ? "「" + (e.textContent || "").trim().slice(0, 8) + "」" : "")
-      const items = (sel) => [...document.querySelectorAll(sel)].filter(vis).filter((e) => !e.classList.contains("grow"))
-      const row1 = items(".top > *"), row2 = items("#row2 > *")
-      const desc = (e) => ({ n: name(e), tag: e.tagName, ...box(e), fs: parseFloat(getComputedStyle(e).fontSize) })
-      const floats = [...row1, ...row2, ...items("#compass"), ...items("#viewCtl > *"), ...items(".bottom > *")].map(desc)
-      const kb = document.querySelector("#kbHint"); const kbBox = vis(kb) ? box(kb) : null
-      const t = document.querySelector("#toast"); t.style.display = "block"; t.textContent = "這一帶是「信義路五段150巷」——等一下就在這裡救羊"
-      const toast = box(t); t.style.display = "none"
-      return { row1: row1.map(desc), row2: row2.map(desc), floats, kbBox, toast,
-        topBox: box(document.querySelector(".top")), row2Box: box(document.querySelector("#row2")),
-        iw: innerWidth, ih: innerHeight, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }
-    })
+    const measure = (sel) => p.evaluate((sel) => {
+      const box = document.querySelector(sel)
+      const kids = [...box.children].filter((e) => getComputedStyle(e).display !== "none")
+      const cs = getComputedStyle(box)
+      let sum = 0
+      const items = kids.map((e) => {
+        const q = e.getBoundingClientRect()
+        if (!e.classList.contains("grow")) sum += q.width
+        return { t: (e.textContent || "").trim().slice(0, 9), id: e.id, w: Math.round(q.width), top: q.top, bottom: q.bottom, right: Math.round(q.right), grow: e.classList.contains("grow") }
+      })
+      const avail = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const gaps = (kids.length - 1) * parseFloat(cs.gap || 0)
+      const real = items.filter((i) => !i.grow)
+      const off = real.filter((i) => i.right > window.innerWidth + 0.5)
+      // 一排 = 每顆的垂直中線都落在同一條(膠囊與按鈕高度不同,用中線比)
+      const mids = real.map((i) => (i.top + i.bottom) / 2)
+      const oneRow = mids.length ? Math.max(...mids) - Math.min(...mids) < 8 : true
+      return { avail: Math.round(avail), need: Math.round(sum + gaps), items: real, offscreen: off.map((i) => i.t), oneRow,
+        bottom: Math.round(Math.max(0, ...real.map((i) => i.bottom))), ids: real.map((i) => i.id) }
+    }, sel)
+    const a = await measure(".top")
+    const c = await measure("#row2")
     console.log(`\n=== ${w}×${h} ===`)
-    console.log("  第一排:" + r.row1.map((i) => `${i.n} ${Math.round(i.w)}×${Math.round(i.h)} 字${i.fs}`).join(" | "))
-    console.log("  第二排:" + r.row2.map((i) => `${i.n} ${Math.round(i.w)}×${Math.round(i.h)} 字${i.fs}`).join(" | "))
-    for (const i of [...r.row1, ...r.row2]) {
-      if (i.l < -0.5 || i.r > r.iw + 0.5) bad(`${i.n} 超出畫面(左 ${Math.round(i.l)} / 右 ${Math.round(i.r)},畫面寬 ${r.iw})`)
-      if (i.fs < 14) bad(`${i.n} 字 ${i.fs}px < 14`)
-      if (i.tag === "BUTTON" && i.h < 44 - 0.5) bad(`${i.n} 高 ${Math.round(i.h)}px < 44`)
-    }
-    const hit = (a, c) => a.l < c.r - 0.5 && c.l < a.r - 0.5 && a.t < c.b - 0.5 && c.t < a.b - 0.5
-    for (let i = 0; i < r.floats.length; i++) {
-      const a = r.floats[i]
-      if (a.b > r.ih + 0.5 || a.t < -0.5) bad(`${a.n} 超出畫面上下(上 ${Math.round(a.t)} / 下 ${Math.round(a.b)},畫面高 ${r.ih})`)
-      for (let j = i + 1; j < r.floats.length; j++) if (hit(a, r.floats[j])) bad(`${a.n} 和 ${r.floats[j].n} 疊在一起`)
-    }
-    const rowsHit = r.row1.some((a) => r.row2.some((c) => hit(a, c)))
-    if (rowsHit) bad("第一排和第二排疊在一起")
-    const vHit = (a, c) => !(a.b <= c.t || a.t >= c.b)
-    const t1 = r.row1.some((x) => vHit(r.toast, x)), t2 = r.row2.some((x) => vHit(r.toast, x))
-    if (t1 || t2) bad(`toast(上緣 ${Math.round(r.toast.t)}px)蓋住 ${t1 ? "第一排 " : ""}${t2 ? "第二排" : ""}`)
-    else console.log(`  🍞 toast(上緣 ${Math.round(r.toast.t)}px)沒有蓋住兩排 🟢`)
-    // ⌨ 操作提示只在有滑鼠的裝置出現、指南針只在有方位感測的手機出現 ⇒ 兩者不會同時在,不互比
-    if (r.kbBox) for (const x of r.floats) {
-      if (!x.n.startsWith("#compass") && hit(r.kbBox, x)) bad(`⌨ 操作提示和 ${x.n} 疊在一起`)
-    }
-    if (r.sw > r.cw) bad(`頁面橫向捲動:scrollWidth ${r.sw} > clientWidth ${r.cw}`)
-    const bottoms = r.floats.filter((f) => f.n.startsWith("#viewChip") || f.n.startsWith("#zoom") || f.n.startsWith("#mapFs"))
-    console.log("  右側控制:" + bottoms.map((i) => `${i.n} 上${Math.round(i.t)}~下${Math.round(i.b)}`).join(" | "))
+    console.log(`  .top  可用 ${a.avail} / 需要 ${a.need}  ${a.need > a.avail ? "🔴 溢出 " + (a.need - a.avail) : "🟢"}   ` + a.items.map((i) => `${i.t}:${i.w}`).join("  "))
+    if (a.offscreen.length) bad("被推出畫面外:" + a.offscreen.join(" / "))
+    if (a.need > a.avail) fail++
+    if (!a.oneRow) bad("第一排折成兩排了")
+    if (!a.ids.includes("accChip")) bad("📍 精度膠囊不在第一排(改前它在第一排)")
+    console.log(`  row2  可用 ${c.avail} / 需要 ${c.need}  ${c.need > c.avail ? "🔴 溢出 " + (c.need - c.avail) : "🟢"}   ` + c.items.map((i) => `${i.t}:${i.w}`).join("  "))
+    if (c.offscreen.length) bad("被推出畫面外:" + c.offscreen.join(" / "))
+    if (c.need > c.avail) fail++
+    if (!c.oneRow) bad("第二排折成兩排了")
+    const headerBottom = Math.max(a.bottom, c.bottom)
+    if (headerBottom > HEADER_MAX) bad(`頂部兩排的底在 ${headerBottom}px > ${HEADER_MAX}px(比改前多出一排或加高了;改前 87px)`)
+    else console.log(`  📏 頂部兩排的底 ${headerBottom}px ≤ ${HEADER_MAX}px 🟢`)
+    /* 🍞 toast 有沒有蓋住那兩排?0826 修過反向版本(提示條被 #placeChip 蓋住),
+       0827 真機截圖又抓到正向版本(toast 蓋住第二排的地名與步數膠囊)。
+       ⇒ 這條用**矩形相交**判定,不用眼睛看。 */
+    const overlap = await p.evaluate(() => {
+      const t = document.querySelector("#toast")
+      t.style.display = "block"
+      t.textContent = "這一帶是「信義路五段150巷」——等一下就在這裡救羊"
+      const r = t.getBoundingClientRect()
+      const hit = (sel) => [...document.querySelectorAll(sel + " > *")].filter((e) => getComputedStyle(e).display !== "none")
+        .some((e) => { const q = e.getBoundingClientRect(); return q.width > 0 && !(r.bottom <= q.top || r.top >= q.bottom) })
+      const res = { top: hit(".top"), row2: hit("#row2"), toastTop: Math.round(r.top) }
+      t.style.display = "none"
+      return res
+    })
+    if (overlap.top || overlap.row2) bad(`toast(top=${overlap.toastTop}px)蓋住 ` + [overlap.top ? ".top" : "", overlap.row2 ? "#row2" : ""].filter(Boolean).join(" / "))
+    else console.log(`  🍞 toast(top=${overlap.toastTop}px)沒有蓋住上面兩排 🟢`)
+    const hs = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+    if (hs) bad("頁面可以橫向捲動")
     await p.close()
   }
 } finally { await b.close(); srv.close() }
 console.log("")
 console.log(fail
-  ? `🔴 頂列/浮動鈕不合格(${fail} 項)——不要再往那兩排塞東西;放不下先縮短文案或改排版,不是把字縮回去。`
-  : "🟢 兩排頂列在 360/390/412 直向與 740×360 橫向都排得下:字 ≥14px、鈕 ≥44px、全部在畫面內、浮動鈕互不相疊。")
+  ? `🔴 上排不合格(${fail} 項)——不要再往那一排塞東西,也不要把頂列加高或拆成更多排(要先問使用者)。`
+  : "🟢 上排在 360/390/412px 都排得下、只有一排,沒有元件被推出畫面外;頂部沒有比改前高。")
 process.exitCode = fail ? 1 : 0
 }

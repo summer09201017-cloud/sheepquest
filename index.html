@@ -16,13 +16,11 @@
   .top{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;gap:6px;align-items:center;
     padding:8px 10px;background:linear-gradient(#fffe, #fff0);pointer-events:none}
   .top>*{pointer-events:auto}
-  /* 👴 1113:膠囊一律 44px 高(line-height 40 + 上下框 2px),字 14px —— 計步/地名膠囊是可以點的鈕 */
-  .chip{background:#fff;border:2px solid var(--green);border-radius:22px;padding:0 12px;line-height:40px;min-height:44px;
-    font-weight:800;font-size:14px;box-shadow:0 2px 6px #0002}
+  /* ↩ 1114:11/13 的「膠囊 44px / 按鈕最矮 48px」退回改前(使用者 2026-11-14 指示:按鈕不要放大、不要改排法) */
+  .chip{background:#fff;border:2px solid var(--green);border-radius:20px;padding:6px 12px;font-weight:800;font-size:14px;box-shadow:0 2px 6px #0002}
   .grow{flex:1}
-  /* 👴 1113 長輩友善:按鈕最矮 48px(原本約 44–47px,手指大的長輩容易按偏) */
   .btn{font:inherit;font-weight:800;border:2px solid var(--green);background:#fff;color:var(--green);
-    border-radius:14px;padding:10px 14px;cursor:pointer;box-shadow:0 2px 6px #0002;min-height:48px}
+    border-radius:14px;padding:10px 14px;cursor:pointer;box-shadow:0 2px 6px #0002}
   .btn.primary{background:var(--green);color:#fff}
   .btn:active{transform:translateY(1px)}
   /* ⚠⚠ 0826 手機實測修:這一列在 390/430 寬度下**整個壞掉** ——
@@ -42,12 +40,17 @@
   .panel{position:fixed;inset:0;z-index:30;background:var(--paper);display:none;overflow:auto;padding:18px 16px 30px}
   .panel.on{display:block}
   h1{margin:6px 0;font-size:26px;color:var(--green)}
-  /* 👴 1113 長輩友善:經文 19px、說明 18px(原本 15 / 13.5px,開場玩法、隱私、更新紀錄都用 .hint) */
+  /* 👴 1113 字放大(1114 退按鈕時留下的部分):經文 19px(原本 15)。
+     .hint 只留開場畫面 18px(玩法、隱私、設定、更新紀錄);其他地方(地圖上的詳情卡、戰鬥畫面的圖資標示、
+     羊圈、足跡、明信片匣)退回 13.5px —— 遊戲站「不擠」優先,那幾處放大會把卡片撐高、把戰鬥按鈕往下推。 */
   .verse{background:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:10px 12px;line-height:1.9;margin:10px 0;font-size:19px}
-  .hint{font-size:18px;color:#5b6b5f;line-height:1.8}
-  /* 🏷 頁尾「版本 vN(日期)· 更新紀錄」:字 17px、整列可點高度 48px */
-  .ver-fold{margin-top:14px}
-  .ver-fold summary{font-size:17px;font-weight:800;line-height:24px;padding:12px 4px;cursor:pointer;color:var(--green)}
+  .hint{font-size:13.5px;color:#5b6b5f;line-height:1.9}
+  #introPanel .hint{font-size:18px;line-height:1.8}
+  /* ⚠ .btn 是 font:inherit ⇒ 放在經文框裡的「🔊 聽經文」與開場設定的四個下拉,會跟著外框的字一起變大。
+     按鈕與下拉維持改前的大小(經文框裡 15px、說明裡 13.5px)—— 只放大字,不放大按鈕。 */
+  .verse .btn{font-size:15px}
+  #introPanel .hint select{font-size:13.5px}
+  /* 🏷 頁尾「版本 vN(日期)· 更新紀錄」:1114 退回一般一行字(11/13 加的 48px 高、17px 字拿掉) */
   #verTag p{margin:0 0 8px}
   .safe{background:#fff4e0;border:2px solid #e0a93f;border-radius:10px;padding:10px 12px;margin:12px 0;line-height:1.9;font-weight:700}
   /* 抓捕場景 */
@@ -86,8 +89,8 @@
   .slot{aspect-ratio:1;border:2px dashed #b9c8bd;border-radius:12px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;background:#fff;font-size:26px}
   .slot.got{border-style:solid;border-color:var(--green)}
-  .slot .nm{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-size:16px;line-height:1.25;font-weight:700;color:#456}
+  /* ↩ 1114:羊名 16px 退回 10.5px(16px 時帶 ⚔️/👑 的格子,羊名會壓到格子邊框) */
+  .slot .nm{font-size:10.5px;font-weight:700;color:#456}
   .slot.gold{border-color:var(--gold);background:#fffbe8}
   /* 📅 羊2:今日第一隻 —— 彩色緞帶(左上角一條斜的)。★ 用 border 疊出來,零圖檔。
      ⚠ 緞帶要 pointer-events:none,不然它會蓋掉跟隨小隊那一區的點擊區(格子點不到)。 */
@@ -106,8 +109,7 @@
      「新加的提示條被 #placeChip 蓋住」)。⇒ toast 壓到第二排下面。
      ★ 這條由 scripts/verify-topbar.mjs 守著(它會量 toast 與兩排的實際矩形有沒有相交),
        別再憑「看起來還好」調這個數字。 */
-  /* ⚠ 1113 兩排加高(第一排按鈕 48px、第二排膠囊 44px,第二排在 60~104px)⇒ toast 跟著壓到 112px。 */
-  #toast{position:fixed;top:112px;left:50%;transform:translateX(-50%);z-index:40;background:#243328;color:#fff;
+  #toast{position:fixed;top:94px;left:50%;transform:translateX(-50%);z-index:40;background:#243328;color:#fff;
     padding:8px 16px;border-radius:20px;font-weight:700;display:none;max-width:86vw;text-align:center}
 
   /* ═══ 🏞 v14:向皮克敏學的四件(地點膠囊 / 指南針 / 地圖配色 / 詳情面板)═══ */
@@ -119,46 +121,40 @@
      ⇒ 膠囊改成**自己一排、置中**(皮克敏也是置中),不跟按鈕搶寬度。 */
   /* 🚶 0827:第二排 = 步數膠囊 + 地名膠囊。用一個置中的 flex 列裝,
      兩個都不換行;地名太長就自己截斷(它本來就有 ellipsis),不去擠步數。 */
-  /* 👴 1113 兩排頂列:第一排 = 羊數 + 朗讀/音樂/羊圈(按鈕 48px 高);
-     第二排 = 📍 定位精度 + 🚶 計步 + 🏞 地名(膠囊 44px 高,top 60px)。
-     ★ 精度膠囊從第一排搬下來:第一排字放大到 14px 以後五個元件在 360px 排不下,
-       少一個才能讓「📖 羊圈」留在畫面內(scripts/verify-topbar.mjs 量 360/390/412 與橫向 740)。 */
-  #row2{position:fixed;top:60px;left:0;right:0;z-index:20;display:flex;gap:6px;
+  /* ↩ 1114:11/13 改的「兩排頂列」(精度膠囊搬到第二排、膠囊 44px、第二排 top 60px)退回改前的一排。
+       使用者 2026-11-14 指示:這一站以後不要主動放大按鈕或改排法。 */
+  #row2{position:fixed;top:52px;left:0;right:0;z-index:20;display:flex;gap:6px;
     align-items:center;justify-content:center;padding:0 8px;pointer-events:none}
   #row2>*{pointer-events:auto}
-  #accChip{white-space:nowrap;flex:0 0 auto}
   #placeChip{display:none;max-width:58vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     border-color:var(--gold);background:#fffdf3}
-  #stepChip{display:none;white-space:nowrap;flex:0 0 auto}
+  #stepChip{display:none;white-space:nowrap}
   /* 同一個病的根治:按鈕與 chip 的字一律不換行(折成直排比塞不下更難看也更難按) */
   .top .btn,.top .chip{white-space:nowrap}
   /* ⚠ 第二次截圖抓到:只加 nowrap 的話,390px 上「📖 羊圈」會被推出畫面外 ——
      而羊圈是收藏冊**和明信片匣**的唯一入口,看不到等於那兩個功能不存在。
-     ★ 不用「橫向捲」解:捲軸在手機上沒有提示,孩子不會知道右邊還有東西。
-     ⚠ 0827 以前的解法是把字縮到 12px、按鈕縮到約 33px 高 —— 長輩看不清也按不準。
-     ⇒ 1113 改成兩排(見 #row2),窄螢幕只收內距、字維持 14px、按鈕維持 48px 高。
-     ★ 量法:scripts/verify-topbar.mjs,改動上排之前先跑,別再憑感覺塞東西。 */
+     ⇒ 窄螢幕縮字級與內距,讓五個元件在 390px 上一次排得下(量過:約 356px < 可用 370px)。
+     ★ 不用「橫向捲」解:捲軸在手機上沒有提示,孩子不會知道右邊還有東西。 */
   @media (max-width:430px){
     .top{gap:4px;padding:8px 6px}
-    .top .btn{padding:0 9px;font-size:14px;border-radius:12px}
-    .top .chip,#row2 .chip{padding:0 9px}
+    .top .btn{padding:7px 7px;font-size:12.5px;border-radius:12px}
+    .top .chip{padding:5px 7px;font-size:12.5px}
   }
-  /* 🎥 橫向手機(740×360 那種):右側直排的視角/縮放鈕 4 顆 × 48px 會超出畫面底 ⇒ 改成橫排,
-     放在指南針左邊;電腦上的方向鍵提示移到左上角,不跟它疊在同一條。 */
-  @media (max-height:500px){
-    #viewCtl{flex-direction:row!important;top:112px!important;right:70px!important}
-    #kbHint{top:112px!important;left:8px!important;transform:none!important}
+  /* ⚠ 0827 量出來的:上面那一檔在 **360px** 仍差 4px(五個元件 352px / 可用 348px)——
+     不是本輪加的東西造成的(本輪的步數已經移到 #row2 了),是原本就卡在邊緣。
+     ★ 量法留著:scripts/verify-topbar.mjs,改動上排之前先跑,別再憑感覺塞東西。 */
+  @media (max-width:375px){
+    .top{gap:3px;padding:8px 5px}
+    .top .btn{padding:7px 6px;font-size:12px}
+    .top .chip{padding:5px 6px;font-size:12px}
   }
-  /* 又矮又窄(橫放的小視窗):左上角放不下操作提示 ⇒ 收起來(進測試模式那句 toast 也講了方向鍵) */
-  @media (max-height:500px) and (max-width:720px){ #kbHint{display:none!important} }
-  /* 下拉選單字放大到 18px 後,最長的選項(牧人 B 款)在 360px 會撐出畫面 ⇒ 最寬到容器邊 */
+  /* 下拉選單最長的選項(牧人 B 款)在 360px 會撐出畫面 ⇒ 最寬到容器邊(1113 加的,1114 留著) */
   .panel select{max-width:100%}
 
   /* ② 指南針:拿不到方位就整顆藏起來 —— 一根不會動的針比沒有針更糟(會被當成壞掉)。 */
   /* ⚠ 截圖抓到:top:56px 會**疊在「📖 羊圈」按鈕上面**(那排按鈕高度約 44px + 8px padding)。
      壓到 104px,讓出整條上排;和地點膠囊(52px)也不互相蓋。 */
-  /* ⚠ 1113:兩排加高後第二排到 104px ⇒ 指南針壓到 112px(視角鈕跟著到 172px,不再跟它疊) */
-  #compass{position:fixed;right:10px;top:112px;z-index:20;width:52px;height:52px;border-radius:50%;
+  #compass{position:fixed;right:10px;top:104px;z-index:20;width:52px;height:52px;border-radius:50%;
     background:#fffffff2;border:2px solid var(--green);box-shadow:0 2px 8px #0003;display:none}
   #compass .needle{position:absolute;left:50%;top:50%;width:0;height:0;transform-origin:50% 50%;
     transition:transform .12s linear}
@@ -200,7 +196,8 @@
   .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:10px}
   .cards figure{margin:0;background:#fff;border:2px solid #dfe7e1;border-radius:10px;padding:6px}
   .cards img{width:100%;border-radius:6px;display:block}
-  .cards figcaption{font-size:16px;font-weight:700;color:#456;margin-top:4px;line-height:1.5;overflow-wrap:anywhere}
+  /* ↩ 1114:明信片說明 16px 退回 11px(卡片只有約 90px 寬,16px 時地名折成好幾行、整格撐很高) */
+  .cards figcaption{font-size:11px;font-weight:700;color:#456;margin-top:4px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -208,7 +205,10 @@
 
 <div class="top">
   <span class="chip">🐑 <span id="count">0</span>/100</span>
-  <!-- 📍 定位精度膠囊 1113 搬到第二排 #row2(第一排字放大後放不下五個元件)。 -->
+  <!-- 📍 0731:把「定位精度」講出來。抓羊要 30 公尺內,±200m 的粗定位會讓人
+       「走到了卻抓不到」,以為遊戲壞了 —— 那不是 bug,是 GPS 還沒收斂。
+       (1113 曾搬到第二排,1114 退回這裡) -->
+  <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 30 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
   <!-- 🚶 0827 訂正:計步**不放在這一排**。這排的 CSS 註解自己就寫著
        「量過:五個元件約 356px < 可用 370px」—— 本來就滿了,再加東西就是把羊圈擠出畫面
        (實測 360/390/412px 三種寬度全部溢出 10~62px,📖 羊圈 每一種都被推出去)。
@@ -226,10 +226,6 @@
      而教會的連結都走 LINE 發(見 skill in-app-browser-guard)。 -->
 <input type="file" id="shotInput" accept="image/*" capture="environment" style="display:none">
 <div id="row2">
-  <!-- 📍 0731:把「定位精度」講出來。抓羊要 30 公尺內,±200m 的粗定位會讓人
-       「走到了卻抓不到」,以為遊戲壞了 —— 那不是 bug,是 GPS 還沒收斂。
-       (1113 從第一排搬下來:第一排字放大到 14px 後,五個元件在 360px 會把「📖 羊圈」擠出畫面) -->
-  <span class="chip" id="accChip" style="display:none" title="定位誤差;要小於 30 公尺才抓得準">📍 ±<span id="accVal">?</span>m</span>
   <!-- 🚶 一顆搞定:還沒開始=「計步」(按了要授權,iOS 只認使用者手勢);已在計步=「N 步」(按了開足跡) -->
   <button class="chip" id="stepChip" title="開始計步(像皮克敏一樣記錄走了幾步)。⚠ 網頁拿不到手機系統的計步器,是用動作感測自己數的,會比系統計步器少;鎖屏或切到背景時不會計">🚶 計步</button>
   <button class="chip" id="placeChip" title="你現在這一帶(點一下看它對應哪個 3D 戰鬥背景)"></button>
@@ -254,8 +250,7 @@
        截圖一看整條被地名膠囊蓋住,只露出兩側的「用…走路」(而自動檢查是綠的,
        因為我當時只比對了頂端那排按鈕,沒把地名膠囊算進去)。
        ⇒ 新增浮動元素時,**要比對的是「所有 position:fixed 的東西」**,不是自己記得的那幾個。 -->
-<!-- ⚠ 1113:兩排加高後第二排到 104px ⇒ 這條從 100px 壓到 118px(橫向矮螢幕另見 CSS 的 max-height:500px) -->
-<div id="kbHint" style="display:none;position:fixed;left:50%;transform:translateX(-50%);top:118px;z-index:12;
+<div id="kbHint" style="display:none;position:fixed;left:50%;transform:translateX(-50%);top:100px;z-index:12;
   background:rgba(255,255,255,.94);border-radius:999px;padding:7px 16px;font-size:14px;font-weight:700;
   color:#2f4f3a;box-shadow:0 2px 10px #0003;pointer-events:none;white-space:nowrap">
   ⌨ 用 ⬆ ⬇ ⬅ ➡ 方向鍵(或 WASD)走路
@@ -268,11 +263,10 @@
      ——那顆「⚔️ 從熊口中救回…」在附近有羊時才出現,所以平常測不到、有羊時才按不到縮放。
      ⇒ 移到地點膠囊下方的空帶(top:150px),並且閘門改成**掃所有 position:fixed 的可見元素**
        比對重疊(同 kbHint 那次的教訓:只比對自己想到的那幾個 = 沒在守)。 -->
-<!-- ⚠ 1113:兩排加高 + 指南針壓到 112~164px ⇒ 這一列從 150px 移到 172px;
-       每顆鈕 48px 高、視角字 16px(原本 13px)。橫向矮螢幕改橫排(見 CSS 的 max-height:500px)。 -->
-<div id="viewCtl" style="position:fixed;right:8px;top:172px;z-index:18;
+<!-- ↩ 1114:11/13 的「移到 172px、每顆 48px、視角字 16px、橫向改橫排」退回改前(150px、字 13px、直排)。 -->
+<div id="viewCtl" style="position:fixed;right:8px;top:150px;z-index:18;
   display:none;flex-direction:column;gap:6px;align-items:flex-end">
-  <button class="btn" id="viewChip" style="font-size:16px;padding:6px 10px;font-weight:800">🎥 斜視角</button>
+  <button class="btn" id="viewChip" style="font-size:13px;padding:6px 10px;font-weight:800">🎥 斜視角</button>
   <button class="btn" id="zoomIn" style="font-size:20px;padding:4px 12px;font-weight:800" title="拉近(看得出自己在走)">＋</button>
   <button class="btn" id="zoomOut" style="font-size:20px;padding:4px 12px;font-weight:800" title="拉遠(看整片)">－</button>
   <!-- ⛶ 手機全螢幕(0827 使用者點名):把瀏覽器網址列收起來,畫面多出 ~250px。
@@ -388,8 +382,9 @@
        ★ 1113 起:畫面版號 = sw.js 的快取版號(sheepquest-vN),右下角徽章問 SW 拿到的也是同一個數字。
          summary、#verTag 第一條、sw.js 三處由 scripts/test-version.mjs 守著,改版三處一起改。 -->
   <details class="ver-fold">
-    <summary>版本 v42(2026-11-13)· 更新紀錄</summary>
+    <summary>版本 v43(2026-11-14)· 更新紀錄</summary>
     <div class="hint" id="verTag" style="margin-top:6px;max-height:50vh;overflow:auto">
+      <p>v43(2026-11-14)· ↩ <b>按鈕和最上面那一排改回原本的樣子</b>(11/13 那次放大退掉):最上面又回到一排、按鈕回到原本的大小,地圖露出來的地方變多。開場說明與經文的大字留著;地圖上的提示卡、戰鬥畫面、羊圈裡的羊名、明信片說明、探險按鈕的字也改回原本大小,免得畫面變擠。</p>
       <p>v42(2026-11-13)· 👴 <b>字和按鈕都變大了</b>:開場說明、經文、羊圈裡的羊名、明信片說明都放大;最上面兩排按鈕加高、字加大,手機上比較好按。地圖上點羊看到的「還要再走幾公尺」改成和遊戲規則一樣(30 公尺內就抓得到);刪掉地標照片前會先問一次;兩處經文補上「神」字前面的空格。版本號從這一版起和手機上實際在跑的版本對齊,所以從 v32 直接跳到 v42。</p>
       <p>v32(2026-10-13)· 👍 <b>可以按讚、留一句話了</b>——開始畫面多一顆「💬 按讚・留言」(平常收起來,點開才展開),把羊帶回家的套索面板也有一份,兩邊按一次就算數。按讚每台裝置一次;留言有兩種:點短語(👍 好聽、🙏 感動、🕊️ 平安、😊 太好玩了、💪 想再玩一次、❤️ 我喜歡,可以一次點好幾句)送出,馬上就會出現,畫面上會顯示每一句被選了幾次;也可以自己打字,老師看過才會出現(不收名字,電話、Email 這類個人資料會被擋下來)。</p>
       <p>v31(2026-09-07)· 🏷 <b>版本與更新紀錄可以收起來了</b>——這一段預設收合,點標題那行才展開;展開後最高只佔半個畫面並且可以捲,不會再把上面的選單擠出畫面。</p>
@@ -3536,7 +3531,7 @@ function paintTripBox() {
         + '<br>⚠ 探險<b>不會生出新羊、也不影響打獸</b> —— 羊還是要走到那裡才找得到。'
       : '還沒去過任何地標——先走出去,反查到地名之後這裡就會出現目的地。';
     $('tripPick').innerHTML = list.map((k) =>
-      '<button class="btn" data-trip="' + k + '" style="font-size:16px">🧭 ' + SCENE_NAME[k] + '</button>').join('');
+      '<button class="btn" data-trip="' + k + '" style="font-size:13px">🧭 ' + SCENE_NAME[k] + '</button>').join('');
     for (const b of $('tripPick').querySelectorAll('[data-trip]')) {
       b.onclick = () => { if (tripStart(b.dataset.trip)) paintTripBox(); };
     }
